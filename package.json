@@ -1,0 +1,15 @@
+{
+  "name": "task-management",
+  "version": "1.0.0",
+  "description": "A comprehensive task management system that helps users organize and track their projects and tasks efficiently.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
