@@ -2,19 +2,19 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const Joi = require("joi");
 
-// Enhanced password validation schema - removed 20 character limit
+// Enhanced password validation schema
 const strictPasswordSchema = Joi.string()
-  .pattern(/^(?=.*[A-Za-z])[A-Za-z\d\W]{8,}$/)
+  .pattern(/^(?=.*[A-Za-z])[A-Za-z\d\W]{8,20}$/)
   .required()
   .messages({
-    "string.pattern.base": "Password must be at least 8 characters and contain at least one letter.",
+    "string.pattern.base": "Password must be 8-20 characters, contain at least one letter, and not be only digits or symbols.",
     "any.required": "Password is required"
   });
 
-// Additional password complexity check - removed 20 character limit
+// Additional password complexity check
 const checkPasswordComplexity = (password) => {
     const checks = {
-        length: password.length >= 8, // Removed upper limit
+        length: password.length >= 8,
         hasLetter: /[A-Za-z]/.test(password),
         hasNumber: /\d/.test(password),
         hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(password),

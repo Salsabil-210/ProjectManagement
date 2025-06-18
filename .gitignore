@@ -33,17 +33,3 @@ yarn-error.log*
 ehthumbs.db
 Thumbs.db
 
-# Database Configuration
-DB_USER=postgres
-DB_PASSWORD=Salo1234.
-DB_NAME=task_management
-DB_HOST=localhost
-DB_PORT=5432
-
-# Server Configuration
-PORT=3000
-NODE_ENV=development
-
-# JWT Configuration (for future use)
-JWT_SECRET=your_jwt_secret_key_here
-JWT_EXPIRES_IN=24h 
