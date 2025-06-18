@@ -14,7 +14,7 @@ const strictPasswordSchema = Joi.string()
 // Additional password complexity check
 const checkPasswordComplexity = (password) => {
     const checks = {
-        length: password.length >= 8,
+        length: password.length <= 8,
         hasLetter: /[A-Za-z]/.test(password),
         hasNumber: /\d/.test(password),
         hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(password),
@@ -35,7 +35,6 @@ const checkPasswordComplexity = (password) => {
 
 // Password validation function using Joi + complexity check
 const validatePassword = (password) => {
-    // First check with Joi
     const { error, value } = strictPasswordSchema.validate(password);
     
     if (error) {
@@ -71,10 +70,6 @@ const validatePassword = (password) => {
     };
 };
 
-// Hash password with configurable salt rounds
-const hashPassword = async (password, saltRounds = 12) => {
-    return await bcrypt.hash(password, saltRounds);
-};
 
 // Secure password comparison using timing-safe comparison
 const comparePassword = async (candidatePassword, hashedPassword) => {
@@ -150,7 +145,6 @@ const generateSecureString = (length = 16) => {
 
 module.exports = {
     validatePassword,
-    hashPassword,
     comparePassword,
     secureStringCompare,
     secureTokenCompare,

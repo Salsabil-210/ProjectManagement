@@ -5,7 +5,7 @@ const app = express();
 const server = https.createServer(app);
 
 // Import database connection
-const db = require('./config/database');
+const db = require('./config/db');
 
 // Import security middleware
 const { 
@@ -16,14 +16,18 @@ const {
     securityHeaders 
 } = require('./middleware/security');
 
-// Import authentication middleware
-const { authenticateToken } = require('./middleware/authmiddleware');
-
+// Import routes
+const authRoutes = require('./routes/authRoutes');
 
 // Apply security middleware
 app.use(securityHeaders);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Apply rate limiting
+app.use('/api/', apiLimiter);
+app.use('/api/users/login', loginLimiter);
+app.use('/api/users/register', registerLimiter);
 
 // Test database connection
 async function testDatabaseConnection() {
@@ -55,6 +59,9 @@ app.get('/health', (req, res) => {
         environment: process.env.NODE_ENV || 'development'
     });
 });
+
+// Use auth routes
+app.use('/api/users', authRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

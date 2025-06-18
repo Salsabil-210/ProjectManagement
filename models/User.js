@@ -8,11 +8,14 @@ const User = sequelize.define('User', {
         primaryKey: true,
         autoIncrement: true
     },
-    username: {
+    name: {
         type: DataTypes.STRING(50),
         allowNull: false,
-        unique: true
     },
+   surname: {
+        type:DataTypes.STRING(50),
+        allowNull: true,
+   },
     email: {
         type: DataTypes.STRING(100),
         allowNull: false,
@@ -25,15 +28,16 @@ const User = sequelize.define('User', {
         type: DataTypes.STRING(255),
         allowNull: false
     },
-    fullName: {
-        type: DataTypes.STRING(100),
-        allowNull: false
+    
+    is_admin: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
     },
+
     isActive: {
         type: DataTypes.BOOLEAN,
         defaultValue: true
     },
-    // Security fields
     loginAttempts: {
         type: DataTypes.INTEGER,
         defaultValue: 0
@@ -65,10 +69,19 @@ const User = sequelize.define('User', {
     resetPasswordExpires: {
         type: DataTypes.DATE,
         allowNull: true
+    },
+    // New fields for numeric reset codes
+    resetPasswordCode: {
+        type: DataTypes.STRING(6),
+        allowNull: true
+    },
+    resetPasswordCodeExpires: {
+        type: DataTypes.BIGINT,
+        allowNull: true
     }
 }, {
     tableName: 'users',
-    timestamps: true, // Adds createdAt and updatedAt
+    timestamps: true, 
     hooks: {
         // Hash password before saving
         beforeCreate: async (user) => {

@@ -1,16 +1,16 @@
-version: '3.8'
+version: "3.8"
+
 services:
   postgres:
-    image: postgres:latest
-    container_name: task_management_db
+    image: postgres:16.7
+    container_name: postgres_16_7
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
-    ports:
-      - "${DB_PORT}:5432"
+      POSTGRES_USER: taskmanagement
+      POSTGRES_PASSWORD: Salo1234.
+      POSTGRES_DB: taskdb
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
 
-volumes:
-  postgres_data: 
