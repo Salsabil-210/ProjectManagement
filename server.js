@@ -1,8 +1,6 @@
 const express = require('express');
-const https = require("https");
+const cors = require('cors');
 require('dotenv').config();
-const app = express();
-const server = https.createServer(app);
 
 // Import database connection
 const db = require('./config/db');
@@ -19,6 +17,8 @@ const {
 // Import routes
 const authRoutes = require('./routes/authRoutes');
 
+const app = express();
+
 // Apply security middleware
 app.use(securityHeaders);
 app.use(express.json({ limit: '10mb' }));
@@ -29,11 +29,25 @@ app.use('/api/', apiLimiter);
 app.use('/api/users/login', loginLimiter);
 app.use('/api/users/register', registerLimiter);
 
-// Test database connection
+// Enhanced database connection test
 async function testDatabaseConnection() {
     try {
         const result = await db.query('SELECT NOW()');
         console.log('✅ PostgreSQL Database connected successfully!');
+        
+        // Verify tables exist
+        const tablesCheck = await db.query(`
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public'
+            AND table_name IN ('users', 'projects', 'tasks')
+        `);
+        
+        if (tablesCheck.rows.length < 3) {
+            console.error('❌ Required tables are missing in the database');
+            return false;
+        }
+        
         return true;
     } catch (error) {
         console.error('❌ PostgreSQL Database connection failed:', error.message);
@@ -46,74 +60,68 @@ app.get('/', (req, res) => {
     res.json({ 
         message: 'Task Management API is running!',
         version: '1.0.0',
-        environment: process.env.NODE_ENV || 'development'
+        environment: process.env.NODE_ENV || 'development',
+        database: 'PostgreSQL'
     });
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'OK',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        environment: process.env.NODE_ENV || 'development'
-    });
+// Enhanced health check endpoint
+app.get('/health', async (req, res) => {
+    try {
+        // Check database connection
+        await db.query('SELECT 1');
+        
+        res.json({
+            status: 'OK',
+            timestamp: new Date().toISOString(),
+            uptime: process.uptime(),
+            environment: process.env.NODE_ENV || 'development',
+            database: 'connected'
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: 'ERROR',
+            database: 'disconnected',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
 });
 
 // Use auth routes
 app.use('/api/users', authRoutes);
 
-// Error handling middleware
+// Enhanced error handling middleware
 app.use((err, req, res, next) => {
     console.error('Unhandled error:', err);
+    
+    // Handle database errors specifically
+    if (err.code && err.code.startsWith('22') || err.code === '23505') {
+        return res.status(400).json({
+            success: false,
+            message: 'Database validation error',
+            error: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
+    }
+    
     res.status(500).json({
         success: false,
         message: 'Internal server error',
-        error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
 });
 
 // 404 handler
-app.use((req, res, next) => {
+app.use((req, res) => {
     res.status(404).json({
         success: false,
-        message: "Endpoint not found"
+        message: "Endpoint not found",
+        path: req.path
     });
 });
 
-// Server setup with database connection
 const PORT = process.env.PORT || 3000;
 
-async function startServer() {
-    // Test database connection first
-    const dbConnected = await testDatabaseConnection();
-    
-    if (!dbConnected) {
-        console.error('❌ Cannot start server without database connection');
-        process.exit(1);
-    }
-    
-    // Start server only if database is connected
-    server.listen(PORT, () => {
-        console.log(`🚀 Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`);
-    });
-}
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-    console.log('SIGTERM received, shutting down gracefully');
-    server.close(() => {
-        console.log('Process terminated');
-        process.exit(0);
-    });
+app.listen(PORT, () => {
+    console.log(`🚀 Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`);
+    console.log(`🔗 Database: PostgreSQL`);
 });
-
-process.on('SIGINT', () => {
-    console.log('SIGINT received, shutting down gracefully');
-    server.close(() => {
-        console.log('Process terminated');
-        process.exit(0);
-    });
-});
-
-startServer();

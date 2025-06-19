@@ -28,14 +28,12 @@ const validatePassword = (password) => {
   return error ? error.details[0].message : null; // Return error message or null if valid
 };
 
-// ✅ التحقق من رمز إعادة تعيين كلمة المرور (يجب أن يكون 6 أرقام فقط)
 const validateResetToken = (token) => {
     const schema = Joi.string().length(6).pattern(/^[0-9]{6}$/).required();
     const { error } = schema.validate(token);
     return !error; // This one stays boolean since it's used differently
 };
 
-// ✅ Registration Validation Schema
 const registerValidation = Joi.object({
     name: Joi.string()
         .min(3)

@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const { User } = require('../models');
+const db = require('../config/db');
 
 const authenticateToken = async (req, res, next) => {
     const token = req.header("Authorization")?.replace("Bearer ", "");
@@ -12,28 +12,22 @@ const authenticateToken = async (req, res, next) => {
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET );
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         
-        const user = await User.findByPk(decoded.userId, {
-            attributes: { exclude: ['password', 'emailVerificationToken', 'resetPasswordToken'] }
-        });
+        const userResult = await db.query(
+            'SELECT id, name, surname, email, is_admin FROM users WHERE id = $1',
+            [decoded.userId]
+        );
 
-        if (!user) {
+        if (userResult.rows.length === 0) {
             return res.status(401).json({
                 success: false,
                 message: "User not found"
             });
         }
 
-        if (!user.isActive) {
-            return res.status(401).json({
-                success: false,
-                message: "Account is deactivated"
-            });
-        }
-
-        req.userId = user.id; 
-        req.user = user; 
+        req.userId = userResult.rows[0].id; 
+        req.user = userResult.rows[0]; 
         
         next();
     } catch (error) {
@@ -47,7 +41,6 @@ const authenticateToken = async (req, res, next) => {
 
 // Admin authorization middleware
 const requireAdmin = (req, res, next) => {
-    // This middleware should be used after authenticateToken
     if (!req.user) {
         return res.status(401).json({
             success: false,
@@ -65,7 +58,7 @@ const requireAdmin = (req, res, next) => {
     next();
 };
 
-// Optional admin check (for routes that work differently for admins vs regular users)
+// Optional admin check
 const optionalAdmin = (req, res, next) => {
     if (req.user && req.user.is_admin) {
         req.isAdmin = true;

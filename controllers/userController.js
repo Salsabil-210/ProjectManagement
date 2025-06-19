@@ -1,29 +1,24 @@
-const { User } = require('../models');
-const { Op } = require('sequelize');
+const db = require('../config/db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const { generateSecureToken } = require('../util/passwordUtils');
 
-// Generate JWT token
 const generateToken = (userId) => {
     return jwt.sign(
         { userId },
-        process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
+        process.env.JWT_SECRET ,
         { expiresIn: '24h' }
     );
 };
 
-// Regex: 6-20 characters, must contain letters, and not only digits or only symbols
 const strictPasswordRegex = /^(?=.*[A-Za-z])[A-Za-z\d\W]{6,20}$/;
 
-// Generate email verification token
 const generateEmailVerificationToken = () => {
     return generateSecureToken();
 };
 
-// Validate secure token with timing-safe comparison
 const validateSecureToken = (providedToken, storedToken) => {
     if (!providedToken || !storedToken) return false;
     return crypto.timingSafeEqual(
@@ -38,15 +33,17 @@ const isTokenExpired = (expiresAt) => {
 };
 
 // Create a new user
-exports.register = async(req,res) =>{
-    const { name, surname, email, password} = req.body;
-
-    try{
-        const existingUser = await User.findOne({
-            where: { email: email }
-        });
+exports.register = async (req, res) => {
+    try {
+        const { name, surname, email, password } = req.body;
         
-        if(existingUser){
+        // Check if email exists
+        const existingUser = await db.query(
+            'SELECT id FROM users WHERE email = $1', 
+            [email]
+        );
+        
+        if (existingUser.rows.length > 0) {
             return res.status(400).json({
                 success: false,
                 message: "Email already exists"
@@ -55,31 +52,23 @@ exports.register = async(req,res) =>{
         
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const newuser = await User.create({
-            name,
-            surname,
-            email,
-            password: hashedPassword
-        });
-
+        // Insert new user
+        const newUser = await db.query(
+            `INSERT INTO users (name, surname, email, password) 
+             VALUES ($1, $2, $3, $4) 
+             RETURNING id, name, surname, email, created_at`,
+            [name, surname, email, hashedPassword]
+        );
+        
         console.log("User registered successfully");
-        console.log(`User Id: ${newuser.id}`);
+        console.log(`User Id: ${newUser.rows[0].id}`);
 
-        res.status(201).json({
-            success: true,
-            message: "User registered successfully",
-            data: {
-                id: newuser.id,
-                name: newuser.name,
-                surname: newuser.surname,
-                email: newuser.email
-            }
-        });
-    } catch(error){
-        console.log("Error in registration: ", error);
-        res.status(500).json({
+        res.status(201).json(newUser.rows[0]);
+    } catch (error) {
+        console.error('Registration error:', error);
+        res.status(500).json({ 
             success: false,
-            message: "Server Error"
+            message: 'Error creating user' 
         });
     }
 };
@@ -90,70 +79,48 @@ exports.loginUser = async (req, res) => {
         const { email, password } = req.body;
 
         // Find user by email
-        const user = await User.findOne({
-            where: { email: email }
-        });
-
-        if (!user) {
+        const userResult = await db.query(
+            'SELECT * FROM users WHERE email = $1',
+            [email]
+        );
+        
+        if (userResult.rows.length === 0) {
             return res.status(401).json({
                 success: false,
                 message: 'Invalid email or password'
             });
         }
+        
+        const user = userResult.rows[0];
 
-        // Check if account is locked
-        if (user.isLocked && user.isLocked()) {
-            return res.status(423).json({
-                success: false,
-                message: 'Account is temporarily locked due to too many failed login attempts. Please try again later.'
-            });
-        }
-
-        // Check if user is active
-        if (!user.isActive) {
-            return res.status(401).json({
-                success: false,
-                message: 'Account is deactivated'
-            });
-        }
-
-        // Compare password with timing-safe comparison
-        const isPasswordValid = await user.comparePassword(password);
+        // Compare passwords
+        const isPasswordValid = await bcrypt.compare(password, user.password);
         
         if (!isPasswordValid) {
-            // Increment failed login attempts if method exists
-            if (user.incLoginAttempts) {
-                await user.incLoginAttempts();
-            }
-            
             return res.status(401).json({
                 success: false,
                 message: 'Invalid email or password'
             });
-        }
-
-        // Reset login attempts on successful login if method exists
-        if (user.resetLoginAttempts) {
-            await user.resetLoginAttempts();
         }
 
         // Generate JWT token
         const token = generateToken(user.id);
 
-        // Return user without password
+        // Remove password before sending response
+        const { password: _, ...userWithoutPassword } = user;
+        
         res.json({
             success: true,
             message: 'Login successful',
-            data: user.toJSON(),
+            data: userWithoutPassword,
             token
         });
 
     } catch (error) {
-        console.error('Error logging in user:', error);
+        console.error('Login error:', error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error',
-            error: error.message
+            message: 'Internal server error'
         });
     }
 };
@@ -171,19 +138,22 @@ exports.verifyEmail = async (req, res) => {
         }
 
         // Find user with this verification token
-        const user = await User.findOne({
-            where: { emailVerificationToken: token }
-        });
+        const userResult = await db.query(
+            'SELECT * FROM users WHERE email_verification_token = $1',
+            [token]
+        );
 
-        if (!user) {
+        if (userResult.rows.length === 0) {
             return res.status(400).json({
                 success: false,
                 message: 'Invalid or expired verification token'
             });
         }
 
+        const user = userResult.rows[0];
+
         // Use secure token comparison
-        if (!validateSecureToken(token, user.emailVerificationToken)) {
+        if (!validateSecureToken(token, user.email_verification_token)) {
             return res.status(400).json({
                 success: false,
                 message: 'Invalid verification token'
@@ -191,10 +161,10 @@ exports.verifyEmail = async (req, res) => {
         }
 
         // Update user to verified
-        await user.update({
-            emailVerified: true,
-            emailVerificationToken: null
-        });
+        await db.query(
+            'UPDATE users SET email_verified = true, email_verification_token = NULL WHERE id = $1',
+            [user.id]
+        );
 
         res.json({
             success: true,
@@ -205,8 +175,7 @@ exports.verifyEmail = async (req, res) => {
         console.error('Error verifying email:', error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error',
-            error: error.message
+            message: 'Internal server error'
         });
     }
 };
@@ -225,27 +194,29 @@ exports.forgotPassword = async (req, res) => {
             });
         }
 
-        const user = await User.findOne({ 
-            where: { email: email }
-        });
+        const userResult = await db.query(
+            'SELECT * FROM users WHERE email = $1',
+            [email]
+        );
         
-        if (!user) {
+        if (userResult.rows.length === 0) {
             return res.status(200).json({ 
                 success: true,
                 message: "If this email exists, a reset code was sent." 
             });
         }
 
+        const user = userResult.rows[0];
         const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-        const resetCodeExpires = Date.now() + 5 * 60 * 1000; // 5 minutes
+        const resetCodeExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-        await user.update({
-            resetPasswordCode: resetCode,
-            resetPasswordCodeExpires: resetCodeExpires
-        });
+        await db.query(
+            'UPDATE users SET reset_password_code = $1, reset_password_code_expires = $2 WHERE id = $3',
+            [resetCode, resetCodeExpires, user.id]
+        );
 
         // Email configuration
-        const transporter = nodemailer.createTransporter({
+        const transporter = nodemailer.createTransport({
             service: "gmail",
             auth: {
                 user: process.env.FROM_EMAIL,
@@ -295,25 +266,30 @@ exports.verifyResetCode = async (req, res) => {
             });
         }
 
-        const user = await User.findOne({ 
-            where: { email: email }
-        });
+        const userResult = await db.query(
+            'SELECT * FROM users WHERE email = $1',
+            [email]
+        );
 
-        if (!user || !user.resetPasswordCode || !user.resetPasswordCodeExpires) {
+        if (userResult.rows.length === 0 || 
+            !userResult.rows[0].reset_password_code || 
+            !userResult.rows[0].reset_password_code_expires) {
             return res.status(400).json({ 
                 success: false,
                 message: "Invalid or expired code" 
             });
         }
 
-        if (Date.now() > user.resetPasswordCodeExpires) {
+        const user = userResult.rows[0];
+
+        if (new Date() > new Date(user.reset_password_code_expires)) {
             return res.status(400).json({ 
                 success: false,
                 message: "Code has expired" 
             });
         }
 
-        if (user.resetPasswordCode !== code) {
+        if (user.reset_password_code !== code) {
             return res.status(400).json({ 
                 success: false,
                 message: "Invalid code" 
@@ -363,25 +339,30 @@ exports.setNewPassword = async (req, res) => {
             });
         }
 
-        const user = await User.findOne({ 
-            where: { email: email }
-        });
+        const userResult = await db.query(
+            'SELECT * FROM users WHERE email = $1',
+            [email]
+        );
 
-        if (!user || !user.resetPasswordCode || !user.resetPasswordCodeExpires) {
+        if (userResult.rows.length === 0 || 
+            !userResult.rows[0].reset_password_code || 
+            !userResult.rows[0].reset_password_code_expires) {
             return res.status(400).json({ 
                 success: false,
                 message: "Invalid or expired code" 
             });
         }
 
-        if (Date.now() > user.resetPasswordCodeExpires) {
+        const user = userResult.rows[0];
+
+        if (new Date() > new Date(user.reset_password_code_expires)) {
             return res.status(400).json({ 
                 success: false,
                 message: "Code has expired" 
             });
         }
 
-        if (user.resetPasswordCode !== code) {
+        if (user.reset_password_code !== code) {
             return res.status(400).json({ 
                 success: false,
                 message: "Invalid code" 
@@ -390,11 +371,10 @@ exports.setNewPassword = async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(newPassword, 12);
         
-        await user.update({
-            password: hashedPassword,
-            resetPasswordCode: null,
-            resetPasswordCodeExpires: null
-        });
+        await db.query(
+            'UPDATE users SET password = $1, reset_password_code = NULL, reset_password_code_expires = NULL WHERE id = $2',
+            [hashedPassword, user.id]
+        );
 
         res.status(200).json({ 
             success: true,
@@ -412,16 +392,42 @@ exports.setNewPassword = async (req, res) => {
 // Get current user profile
 exports.getProfile = async (req, res) => {
     try {
+        const userResult = await db.query(
+            'SELECT id, name, surname, email, is_admin, created_at FROM users WHERE id = $1',
+            [req.user.id]
+        );
+
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ 
+                success: false,
+                message: 'User not found' 
+            });
+        }
+
+        const user = userResult.rows[0];
+
+        // Get user's projects
+        const projectsResult = await db.query(
+            'SELECT id, name, description FROM projects WHERE admin_id = $1',
+            [user.id]
+        );
+
+        // Get user's assigned tasks
+        const tasksResult = await db.query(
+            'SELECT id, name, status, is_completed FROM tasks WHERE user_id = $1',
+            [user.id]
+        );
+
         res.json({
-            success: true,
-            data: req.user
+            ...user,
+            projects: projectsResult.rows,
+            assignedTasks: tasksResult.rows
         });
     } catch (error) {
         console.error('Error getting profile:', error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error',
-            error: error.message
+            message: 'Internal server error'
         });
     }
 };
@@ -434,38 +440,60 @@ exports.updateProfile = async (req, res) => {
 
         // Check if email is already taken by another user
         if (email && email !== req.user.email) {
-            const existingUser = await User.findOne({
-                where: { 
-                    email: email,
-                    id: { [Op.ne]: userId }
-                }
-            });
+            const existingUser = await db.query(
+                'SELECT id FROM users WHERE email = $1 AND id != $2',
+                [email, userId]
+            );
 
-            if (existingUser) {
+            if (existingUser.rows.length > 0) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Email is already taken'
+                    message: 'Email is already taken by another user !'
                 });
             }
         }
 
-        // Update user
-        await User.update(
-            { name, surname, email },
-            { where: { id: userId } }
-        );
+        // Build update query dynamically based on provided fields
+        const updates = [];
+        const values = [];
+        let paramCount = 1;
+
+        if (name) {
+            updates.push(`name = $${paramCount++}`);
+            values.push(name);
+        }
+        if (surname) {
+            updates.push(`surname = $${paramCount++}`);
+            values.push(surname);
+        }
+        if (email) {
+            updates.push(`email = $${paramCount++}`);
+            values.push(email);
+        }
+
+        if (updates.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No valid fields provided for update'
+            });
+        }
+
+        values.push(userId);
+        const query = `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING id, name, surname, email`;
+
+        const updatedUser = await db.query(query, values);
 
         res.json({
             success: true,
-            message: 'Profile updated successfully'
+            message: 'Profile updated successfully',
+            data: updatedUser.rows[0]
         });
 
     } catch (error) {
         console.error('Error updating profile:', error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error',
-            error: error.message
+            message: 'Internal server error'
         });
     }
 };
@@ -477,17 +505,22 @@ exports.changePassword = async (req, res) => {
         const userId = req.user.id;
 
         // Get user with password
-        const user = await User.findByPk(userId);
-
-        if (!user) {
+        const userResult = await db.query(
+            'SELECT * FROM users WHERE id = $1',
+            [userId]
+        );
+        
+        if (userResult.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'User not found'
             });
         }
 
+        const user = userResult.rows[0];
+
         // Verify current password
-        const isCurrentPasswordValid = await user.comparePassword(currentPassword);
+        const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
         
         if (!isCurrentPasswordValid) {
             return res.status(400).json({
@@ -500,7 +533,10 @@ exports.changePassword = async (req, res) => {
         const hashedPassword = await bcrypt.hash(newPassword, 12);
 
         // Update password
-        await user.update({ password: hashedPassword });
+        await db.query(
+            'UPDATE users SET password = $1 WHERE id = $2',
+            [hashedPassword, user.id]
+        );
 
         res.json({
             success: true,
@@ -511,8 +547,7 @@ exports.changePassword = async (req, res) => {
         console.error('Error changing password:', error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error',
-            error: error.message
+            message: 'Internal server error'
         });
     }
 };
@@ -528,24 +563,47 @@ exports.getAllUsers = async (req, res) => {
             });
         }
 
-        const users = await User.findAll({
-            attributes: { 
-                exclude: ['password', 'emailVerificationToken', 'resetPasswordToken'] 
-            },
-            order: [['createdAt', 'DESC']]
-        });
+        const users = await db.query(
+            'SELECT id, name, surname, email, is_admin, created_at FROM users ORDER BY created_at DESC'
+        );
 
         res.json({
             success: true,
-            data: users
+            data: users.rows
         });
 
     } catch (error) {
         console.error('Error getting all users:', error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error',
-            error: error.message
+            message: 'Internal server error'
         });
     }
-}; 
+};
+
+// Delete user (admin only)
+exports.deleteUser = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        
+        const result = await db.query(
+            'DELETE FROM users WHERE id = $1 RETURNING id',
+            [userId]
+        );
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ 
+                success: false,
+                message: 'User not found' 
+            });
+        }
+
+        res.status(204).send();
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        res.status(500).json({ 
+            success: false,
+            message: 'Error deleting user' 
+        });
+    }
+};
