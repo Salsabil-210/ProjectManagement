@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const { generateSecureToken } = require('../util/passwordUtils');
+const cookie = require ('cookie-parser');
+
 
 const generateToken = (userId) => {
     return jwt.sign(
@@ -27,17 +29,15 @@ const validateSecureToken = (providedToken, storedToken) => {
     );
 };
 
-// Check if token is expired
 const isTokenExpired = (expiresAt) => {
     return new Date() > new Date(expiresAt);
 };
 
-// Create a new user
+
 exports.register = async (req, res) => {
     try {
-        const { name, surname, email, password } = req.body;
+        const { name, surname, email, password, is_admin} = req.body;
         
-        // Check if email exists
         const existingUser = await db.query(
             'SELECT id FROM users WHERE email = $1', 
             [email]
@@ -52,18 +52,23 @@ exports.register = async (req, res) => {
         
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Insert new user
         const newUser = await db.query(
-            `INSERT INTO users (name, surname, email, password) 
-             VALUES ($1, $2, $3, $4) 
-             RETURNING id, name, surname, email, created_at`,
-            [name, surname, email, hashedPassword]
+            `INSERT INTO users (name, surname, email, password, is_admin) 
+             VALUES ($1, $2, $3, $4,$5) 
+             RETURNING id, name, surname, email, created_at, is_admin`,
+            [name, surname, email, hashedPassword,is_admin]
         );
         
-        console.log("User registered successfully");
-        console.log(`User Id: ${newUser.rows[0].id}`);
+        const user = newUser.rows[0];
+        const token = generateToken(user.id);
 
-        res.status(201).json(newUser.rows[0]);
+        res.status(201).json({
+            success: true,
+            message: 'User registered successfully',
+            data: user,
+            token
+        });
+
     } catch (error) {
         console.error('Registration error:', error);
         res.status(500).json({ 
@@ -73,17 +78,16 @@ exports.register = async (req, res) => {
     }
 };
 
-// Login user with enhanced security
 exports.loginUser = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // Find user by email
         const userResult = await db.query(
             'SELECT * FROM users WHERE email = $1',
             [email]
         );
         
+    
         if (userResult.rows.length === 0) {
             return res.status(401).json({
                 success: false,
@@ -93,26 +97,31 @@ exports.loginUser = async (req, res) => {
         
         const user = userResult.rows[0];
 
-        // Compare passwords
-        const isPasswordValid = await bcrypt.compare(password, user.password);
+        const isPasswordcorrect = await bcrypt.compare(password, user.password);
         
-        if (!isPasswordValid) {
+        if (!isPasswordcorrect) {
             return res.status(401).json({
                 success: false,
                 message: 'Invalid email or password'
             });
         }
 
-        // Generate JWT token
         const token = generateToken(user.id);
 
-        // Remove password before sending response
+        res.cookie('token', token,{
+            httpOnly: true,
+            secure:process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge:20*60*60*1000
+        });
+
         const { password: _, ...userWithoutPassword } = user;
         
         res.json({
             success: true,
             message: 'Login successful',
             data: userWithoutPassword,
+            is_admin :user.is_admin,
             token
         });
 
@@ -125,7 +134,14 @@ exports.loginUser = async (req, res) => {
     }
 };
 
-// Verify email with secure token comparison
+exports.logout = async (req, res) => {
+    res.clearCookie('token');
+    res.json({
+        success: true,
+        message: 'Logged out successfully'
+    });
+};
+
 exports.verifyEmail = async (req, res) => {
     try {
         const { token } = req.params;
@@ -137,7 +153,6 @@ exports.verifyEmail = async (req, res) => {
             });
         }
 
-        // Find user with this verification token
         const userResult = await db.query(
             'SELECT * FROM users WHERE email_verification_token = $1',
             [token]
@@ -152,7 +167,6 @@ exports.verifyEmail = async (req, res) => {
 
         const user = userResult.rows[0];
 
-        // Use secure token comparison
         if (!validateSecureToken(token, user.email_verification_token)) {
             return res.status(400).json({
                 success: false,
@@ -160,7 +174,6 @@ exports.verifyEmail = async (req, res) => {
             });
         }
 
-        // Update user to verified
         await db.query(
             'UPDATE users SET email_verified = true, email_verification_token = NULL WHERE id = $1',
             [user.id]
@@ -180,7 +193,6 @@ exports.verifyEmail = async (req, res) => {
     }
 };
 
-// Send numeric code to email for password reset
 exports.forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
@@ -208,14 +220,13 @@ exports.forgotPassword = async (req, res) => {
 
         const user = userResult.rows[0];
         const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-        const resetCodeExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+        const resetCodeExpires = new Date(Date.now() + 5 * 60 * 1000); 
 
         await db.query(
             'UPDATE users SET reset_password_code = $1, reset_password_code_expires = $2 WHERE id = $3',
             [resetCode, resetCodeExpires, user.id]
         );
 
-        // Email configuration
         const transporter = nodemailer.createTransport({
             service: "gmail",
             auth: {
@@ -244,7 +255,6 @@ exports.forgotPassword = async (req, res) => {
     }
 };
 
-// Verify reset code only
 exports.verifyResetCode = async (req, res) => {
     try {
         const { email, code } = req.body;
@@ -309,7 +319,6 @@ exports.verifyResetCode = async (req, res) => {
     }
 };
 
-// Set new password after verification
 exports.setNewPassword = async (req, res) => {
     try {
         const { email, code, newPassword } = req.body;
@@ -389,7 +398,6 @@ exports.setNewPassword = async (req, res) => {
     }
 };
 
-// Get current user profile
 exports.getProfile = async (req, res) => {
     try {
         const userResult = await db.query(
@@ -406,13 +414,11 @@ exports.getProfile = async (req, res) => {
 
         const user = userResult.rows[0];
 
-        // Get user's projects
         const projectsResult = await db.query(
             'SELECT id, name, description FROM projects WHERE admin_id = $1',
             [user.id]
         );
 
-        // Get user's assigned tasks
         const tasksResult = await db.query(
             'SELECT id, name, status, is_completed FROM tasks WHERE user_id = $1',
             [user.id]
@@ -432,7 +438,6 @@ exports.getProfile = async (req, res) => {
     }
 };
 
-// Update user profile
 exports.updateProfile = async (req, res) => {
     try {
         const { name, surname, email } = req.body;
@@ -498,7 +503,6 @@ exports.updateProfile = async (req, res) => {
     }
 };
 
-// Change password
 exports.changePassword = async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
@@ -552,7 +556,6 @@ exports.changePassword = async (req, res) => {
     }
 };
 
-// Get all users (admin only - without passwords)
 exports.getAllUsers = async (req, res) => {
     try {
         // Check if user is admin
@@ -581,7 +584,7 @@ exports.getAllUsers = async (req, res) => {
     }
 };
 
-// Delete user (admin only)
+// admin only
 exports.deleteUser = async (req, res) => {
     try {
         const { userId } = req.params;

@@ -2,9 +2,9 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const cors = require('cors');
 
-// Rate limiting for login attempts
+
 const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
+    windowMs: 15 * 60 * 1000, 
     max: 10, 
     message: {
         success: false,
@@ -25,7 +25,7 @@ const registerLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-// General API rate limiting
+
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, 
     max: 100, 
@@ -37,14 +37,14 @@ const apiLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-// CORS configuration
+
 const corsOptions = {
     origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000'],
     credentials: true,
     optionsSuccessStatus: 200
 };
 
-// Security headers middleware
+
 const securityHeaders = helmet({
     contentSecurityPolicy: {
         directives: {

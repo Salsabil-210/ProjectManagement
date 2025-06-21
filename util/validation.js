@@ -25,44 +25,44 @@ const strictPasswordSchema = Joi.string()
 
 const validatePassword = (password) => {
   const { error } = strictPasswordSchema.validate(password);
-  return error ? error.details[0].message : null; // Return error message or null if valid
+  return error ? error.details[0].message : null;
 };
 
 const validateResetToken = (token) => {
     const schema = Joi.string().length(6).pattern(/^[0-9]{6}$/).required();
     const { error } = schema.validate(token);
-    return !error; // This one stays boolean since it's used differently
+    return !error; 
 };
 
 const registerValidation = Joi.object({
     name: Joi.string()
         .min(3)
-        .max(30)
-        .pattern(/^\S+$/) // No spaces allowed
+        .max(50)
+        .pattern(/^\S+$/) 
         .required()
         .messages({
             "string.empty": "Name is required",
             "string.min": "Name must be at least 3 characters",
-            "string.max": "Name must be less than 30 characters",
+            "string.max": "Name must be less than 50 characters",
             "string.pattern.base": "Name cannot contain spaces",
             "any.required": "Name is required",
         }),
     surname: Joi.string()
         .min(3)
-        .max(30)
-        .pattern(/^\S+$/) // No spaces allowed
+        .max(50)
+        .pattern(/^\S+$/) 
         .required()
         .messages({
             "string.empty": "Surname is required",
             "string.min": "Surname must be at least 3 characters",
-            "string.max": "Surname must be less than 30 characters",
+            "string.max": "Surname must be less than 50 characters",
             "string.pattern.base": "Surname cannot contain spaces",
             "any.required": "Surname is required",
         }),
     email: Joi.string()
         .email({ tlds: { allow: false } })
-        .pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/) // Prevent spaces
-        .pattern(/\.com$/) // Must end with .com
+        .pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/) 
+        .pattern(/\.com$/) 
         .required()
         .messages({
             "string.email": "Invalid email format",
@@ -76,14 +76,14 @@ const registerValidation = Joi.object({
         "string.pattern.base": "Password must be 6-20 characters, contain at least one letter, and not be only digits or symbols.",
         "any.required": "Password is required"
       }),
+    is_admin: Joi.boolean().optional()
 });
 
-// Login Validation Schema
 const loginValidation = Joi.object({
     email: Joi.string()
         .email({ tlds: { allow: false } })
         .pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/) 
-        .pattern(/\.com$/) // Must end with .com
+        .pattern(/\.com$/) 
         .required()
         .messages({
             "string.email": "Invalid email format",
@@ -91,19 +91,18 @@ const loginValidation = Joi.object({
             "any.required": "Email is required",
         }),
     password: Joi.string()
-        .pattern(/^\S+$/) // No spaces allowed
+        .pattern(/^\S+$/)
         .required()
         .messages({
             "any.required": "Password is required",
         }),
 });
 
-//  Password Reset Validation Schema
 const passwordResetValidation = Joi.object({
     email: Joi.string()
         .email({ tlds: { allow: false } })
         .pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/) 
-        .pattern(/\.com$/) // Must end with .com
+        .pattern(/\.com$/) 
         .required()
         .messages({
             "string.email": "Invalid email format",
@@ -112,7 +111,6 @@ const passwordResetValidation = Joi.object({
         }),
 });
 
-// New Password Validation Schema
 const newPasswordValidation = Joi.object({
     token: Joi.string()
         .length(6)
@@ -132,32 +130,31 @@ const newPasswordValidation = Joi.object({
         }),
 });
 
-// ✅ Profile Update Validation Schema
 const profileUpdateValidation = Joi.object({
     name: Joi.string()
         .min(3)
-        .max(30)
-        .pattern(/^\S+$/) // No spaces allowed
+        .max(50)
+        .pattern(/^\S+$/)
         .optional()
         .messages({
             "string.min": "Name must be at least 3 characters",
-            "string.max": "Name must be less than 30 characters",
+            "string.max": "Name must be less than 50 characters",
             "string.pattern.base": "Name cannot contain spaces",
         }),
     surname: Joi.string()
         .min(3)
-        .max(30)
-        .pattern(/^\S+$/) // No spaces allowed
+        .max(50)
+        .pattern(/^\S+$/) 
         .optional()
         .messages({
             "string.min": "Surname must be at least 3 characters",
-            "string.max": "Surname must be less than 30 characters",
+            "string.max": "Surname must be less than 50 characters",
             "string.pattern.base": "Surname cannot contain spaces",
         }),
     email: Joi.string()
         .email({ tlds: { allow: false } })
-        .pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/) // Prevent spaces
-        .pattern(/\.com$/) // Must end with .com
+        .pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/) 
+        .pattern(/\.com$/) 
         .optional()
         .messages({
             "string.email": "Invalid email format",
@@ -165,10 +162,9 @@ const profileUpdateValidation = Joi.object({
         }),
 });
 
-// ✅ Change Password Validation Schema
 const changePasswordValidation = Joi.object({
     currentPassword: Joi.string()
-        .pattern(/^\S+$/) // No spaces allowed
+        .pattern(/^\S+$/) 
         .required()
         .messages({
             "any.required": "Current password is required",
@@ -182,12 +178,11 @@ const changePasswordValidation = Joi.object({
         }),
 });
 
-// Validation middleware factory
 const validate = (schema) => {
     return (req, res, next) => {
         const { error, value } = schema.validate(req.body, {
-            abortEarly: false, // Return all errors, not just the first one
-            stripUnknown: true // Remove fields not in schema
+            abortEarly: false, 
+            stripUnknown: true 
         });
 
         if (error) {
@@ -199,15 +194,12 @@ const validate = (schema) => {
             });
         }
 
-        // Replace req.body with validated data
         req.body = value;
         next();
     };
 };
 
-// ✅ Export Validators and Middleware
 module.exports = {
-    // Schemas
     registerValidation,
     loginValidation,
     passwordResetValidation,
@@ -215,7 +207,6 @@ module.exports = {
     profileUpdateValidation,
     changePasswordValidation,
     
-    // Individual validators
     validateEmail,
     validatePassword,
     validateResetToken,

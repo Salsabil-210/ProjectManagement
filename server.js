@@ -2,11 +2,9 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-// Import database connection
 const db = require('./config/db');
 
-// Import security middleware
-const { 
+const {
     loginLimiter, 
     registerLimiter, 
     apiLimiter, 
@@ -14,28 +12,23 @@ const {
     securityHeaders 
 } = require('./middleware/security');
 
-// Import routes
 const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
-// Apply security middleware
 app.use(securityHeaders);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Apply rate limiting
 app.use('/api/', apiLimiter);
 app.use('/api/users/login', loginLimiter);
 app.use('/api/users/register', registerLimiter);
 
-// Enhanced database connection test
 async function testDatabaseConnection() {
     try {
         const result = await db.query('SELECT NOW()');
         console.log('✅ PostgreSQL Database connected successfully!');
         
-        // Verify tables exist
         const tablesCheck = await db.query(`
             SELECT table_name 
             FROM information_schema.tables 
@@ -65,10 +58,8 @@ app.get('/', (req, res) => {
     });
 });
 
-// Enhanced health check endpoint
 app.get('/health', async (req, res) => {
     try {
-        // Check database connection
         await db.query('SELECT 1');
         
         res.json({
@@ -87,14 +78,11 @@ app.get('/health', async (req, res) => {
     }
 });
 
-// Use auth routes
 app.use('/api/users', authRoutes);
 
-// Enhanced error handling middleware
 app.use((err, req, res, next) => {
     console.error('Unhandled error:', err);
     
-    // Handle database errors specifically
     if (err.code && err.code.startsWith('22') || err.code === '23505') {
         return res.status(400).json({
             success: false,
@@ -110,7 +98,6 @@ app.use((err, req, res, next) => {
     });
 });
 
-// 404 handler
 app.use((req, res) => {
     res.status(404).json({
         success: false,
