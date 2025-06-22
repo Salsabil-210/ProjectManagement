@@ -5,7 +5,18 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const { generateSecureToken } = require('../util/passwordUtils');
 const cookie = require ('cookie-parser');
+const winston = require('winston');
 
+const failedLoginAttempts = {};
+
+const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.json(),
+    transports: [
+        new winston.transports.Console(),
+        // You can add file transport here if needed
+    ],
+});
 
 const generateToken = (userId) => {
     return jwt.sign(
@@ -86,25 +97,37 @@ exports.loginUser = async (req, res) => {
             'SELECT * FROM users WHERE email = $1',
             [email]
         );
-        
-    
-        if (userResult.rows.length === 0) {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid email or password'
-            });
-        }
-        
-        const user = userResult.rows[0];
 
-        const isPasswordcorrect = await bcrypt.compare(password, user.password);
-        
-        if (!isPasswordcorrect) {
+        if (!failedLoginAttempts[email]) {
+            failedLoginAttempts[email] = 0;
+        }
+
+        if (userResult.rows.length === 0) {
+            failedLoginAttempts[email] += 1;
+            if (failedLoginAttempts[email] > 5) {
+                logger.warn(`it maight be Brute force : More than 5 failed login attempts for email: ${email}`);
+            }
             return res.status(401).json({
                 success: false,
                 message: 'Invalid email or password'
             });
         }
+
+        const user = userResult.rows[0];
+        const isPasswordcorrect = await bcrypt.compare(password, user.password);
+
+        if (!isPasswordcorrect) {
+            failedLoginAttempts[email] += 1;
+            if (failedLoginAttempts[email] > 5) {
+                logger.warn(`Brute force detected: More than 5 failed login attempts for email: ${email}`);
+            }
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid email or password'
+            });
+        }
+
+        failedLoginAttempts[email] = 0;
 
         const token = generateToken(user.id);
 
@@ -116,7 +139,7 @@ exports.loginUser = async (req, res) => {
         });
 
         const { password: _, ...userWithoutPassword } = user;
-        
+
         res.json({
             success: true,
             message: 'Login successful',

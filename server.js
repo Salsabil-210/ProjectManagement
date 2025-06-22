@@ -1,8 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
-
 const db = require('./config/db');
+const cookie = require('cookie-parser');
 
 const {
     loginLimiter, 
@@ -15,7 +15,7 @@ const {
 const authRoutes = require('./routes/authRoutes');
 
 const app = express();
-
+app.use(cookie());
 app.use(securityHeaders);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -27,7 +27,7 @@ app.use('/api/users/register', registerLimiter);
 async function testDatabaseConnection() {
     try {
         const result = await db.query('SELECT NOW()');
-        console.log('✅ PostgreSQL Database connected successfully!');
+        console.log(' PostgreSQL Database connected successfully!');
         
         const tablesCheck = await db.query(`
             SELECT table_name 
@@ -37,13 +37,13 @@ async function testDatabaseConnection() {
         `);
         
         if (tablesCheck.rows.length < 3) {
-            console.error('❌ Required tables are missing in the database');
+            console.error(' Required tables are missing in the database');
             return false;
         }
         
         return true;
     } catch (error) {
-        console.error('❌ PostgreSQL Database connection failed:', error.message);
+        console.error(' PostgreSQL Database connection failed:', error.message);
         return false;
     }
 }
@@ -109,6 +109,6 @@ app.use((req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-    console.log(`🚀 Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`);
-    console.log(`🔗 Database: PostgreSQL`);
+    console.log(` Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`);
+    console.log(` Database: PostgreSQL`);
 });

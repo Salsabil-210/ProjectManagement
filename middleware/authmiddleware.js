@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const db = require('../config/db');
+const cookie = require('cookie-parser');
 
 const authenticateToken = async (req, res, next) => {
     const token = req.header("Authorization")?.replace("Bearer ", "");
