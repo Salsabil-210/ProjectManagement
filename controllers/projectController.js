@@ -1,7 +1,14 @@
 //  exports.addproject = async (req,res) => {
 //      try {
-//          const{name, description, } = req.body
+//  if(!is_admin.id){
+// res.status(401).json({
+//sucess:false,
+//message:`you sre not authorixed to add projects`,
+//
+//})          
+// if(is_admin.id){
 
+//   const{name, description, } = req.body
 //    const newproject = await db.query(
 //    `INSERT INTO projects(name,description)
 //     VALUES($1,$2)

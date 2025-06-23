@@ -13,8 +13,9 @@ const authenticateToken = async (req, res, next) => {
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
+        const secretkey = process.env.JWT_SECRET;
+        const decoded =jwt.verify(token,secretkey);
+
         const userResult = await db.query(
             'SELECT id, name, surname, email, is_admin FROM users WHERE id = $1',
             [decoded.userId]
@@ -40,37 +41,19 @@ const authenticateToken = async (req, res, next) => {
     }
 };
 
-// Admin authorization middleware
-const requireAdmin = (req, res, next) => {
-    if (!req.user) {
-        return res.status(401).json({
-            success: false,
-            message: "Authentication required"
-        });
-    }
-
+const isAdmin = (req, res, next) => {
     if (!req.user.is_admin) {
-        return res.status(403).json({
-            success: false,
-            message: "Access denied. Admin privileges required."
-        });
-    }
-
-    next();
-};
-
-// Optional admin check
-const optionalAdmin = (req, res, next) => {
-    if (req.user && req.user.is_admin) {
-        req.isAdmin = true;
+        next();
     } else {
-        req.isAdmin = false;
+        res.status(403).json({
+          success: false,
+          message: "no access. Not authorized as admin." });
     }
-    next();
 };
+
+
 
 module.exports = { 
     authenticateToken, 
-    requireAdmin, 
-    optionalAdmin 
+    isAdmin,
 };

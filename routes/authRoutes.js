@@ -10,7 +10,7 @@ const {
     validateProfileUpdate, 
     validateChangePassword 
 } = require('../util/validation');
-const { authenticateToken, requireAdmin } = require('../middleware/authmiddleware');
+const { authenticateToken, isAdmin } = require('../middleware/authmiddleware');
 const userController = require('../controllers/userController');
 
 router.post('/register', validateRegistration, userController.register);
@@ -27,6 +27,6 @@ router.put('/profile', authenticateToken, validateProfileUpdate, userController.
 router.put('/change-password', authenticateToken, validateChangePassword, userController.changePassword);
 
 // Admin-only routes
-router.get('/all', authenticateToken, requireAdmin, userController.getAllUsers);
+router.get('/all', authenticateToken, isAdmin, userController.getAllUsers);
 
 module.exports = router;
