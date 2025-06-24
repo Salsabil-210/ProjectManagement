@@ -13,6 +13,7 @@ const {
 } = require('./middleware/security');
 
 const authRoutes = require('./routes/authRoutes');
+const authController = require('./controllers/authController');
 
 const app = express();
 app.use(cookie());
@@ -48,7 +49,6 @@ async function testDatabaseConnection() {
     }
 }
 
-// Basic route
 app.get('/', (req, res) => {
     res.json({ 
         message: 'Task Management API is running!',

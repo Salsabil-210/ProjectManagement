@@ -212,7 +212,6 @@ module.exports = {
     validateResetToken,
     strictPasswordSchema,
     
-    // Middleware functions
     validateRegistration: validate(registerValidation),
     validateLogin: validate(loginValidation),
     validatePasswordReset: validate(passwordResetValidation),

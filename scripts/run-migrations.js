@@ -11,10 +11,8 @@ const dbConfig = {
     database: process.env.DB_NAME,
   };
   
-  // Create a new PostgreSQL client
   const client = new Client(dbConfig);
   
-  // Connect to the database
   client
     .connect()
     .then(() => {

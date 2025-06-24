@@ -6,8 +6,9 @@ const nodemailer = require('nodemailer');
 const { generateSecureToken } = require('../util/passwordUtils');
 const cookie = require ('cookie-parser');
 const winston = require('winston');
-
+const tokenBlacklist = new Set();
 const failedLoginAttempts = {};
+const isAdmin = require('../middleware/authmiddleware');
 
 const logger = winston.createLogger({
     level: 'info',
@@ -17,13 +18,18 @@ const logger = winston.createLogger({
     ],
 });
 
-const generateToken = (userId) => {
-    return jwt.sign(
-        { userId },
-        process.env.JWT_SECRET ,
-        { expiresIn: '24h' }
+const generateToken = (userId) => 
+    jwt.sign(
+        { user: userId }, 
+        process.env.JWT_SECRET, 
+        { 
+        expiresIn: process.env.JWT_EXPIRES_IN 
+        }
     );
-};
+
+const verifyToken = () => {
+    
+}
 
 const strictPasswordRegex = /^(?=.*[A-Za-z])[A-Za-z\d\W]{6,20}$/;
 
@@ -39,9 +45,9 @@ const validateSecureToken = (providedToken, storedToken) => {
     );
 };
 
-const isTokenExpired = (expiresAt) => {
-    return new Date() > new Date(expiresAt);
-};
+// const isTokenExpired = (expiresAt) => {
+//     return new Date() > new Date(expiresAt);
+// };
 
 
 exports.register = async (req, res) => {
@@ -51,7 +57,15 @@ exports.register = async (req, res) => {
         const existingUser = await db.query(
             'SELECT id FROM users WHERE email = $1', 
             [email]
-        );
+        ); 
+        
+        if(is_admin == false){
+            return res.status(403).json({
+                sucess: false,
+                message:`Only admin can register`
+            });
+
+        }
         
         if (existingUser.rows.length > 0) {
             return res.status(400).json({
@@ -157,11 +171,150 @@ exports.loginUser = async (req, res) => {
 };
 
 exports.logout = async (req, res) => {
-    res.clearCookie('token');
-    res.json({
-        success: true,
-        message: 'Logged out successfully'
-    });
+    try {
+        let token;
+        if (req.cookies && req.cookies.token) {
+            token = req.cookies.token;
+        }
+        if (!token && req.body && req.body.token) {
+            token = req.body.token;
+        }
+        if (token) {
+            tokenBlacklist.add(token);
+        }
+        res.clearCookie('token', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict'
+        });
+
+        res.json({
+            success: true,
+            message: 'Logged out successfully'
+        });
+    } catch (error) {
+        console.error('Logout error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error during logout'
+        });
+    }
+};
+
+exports.updateUser = async (req, res) => {
+    try {
+        const { name, surname, email } = req.body;
+        const userId = req.user.id;
+
+        if (email && email !== req.user.email) {
+            const existingUser = await db.query(
+                'SELECT id FROM users WHERE email = $1 AND id != $2',
+                [email, userId]
+            );
+
+            if (existingUser.rows.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'This Email is not valid ,please Enter another Email!'
+                });
+            }
+        }
+
+
+        const updates = [];
+        const values = [];
+        let paramCount = 1;
+
+        if (name) {
+            updates.push(`name = $${paramCount++}`);
+            values.push(name);
+        }
+        if (surname) {
+            updates.push(`surname = $${paramCount++}`);
+            values.push(surname);
+        }
+        if (email) {
+            updates.push(`email = $${paramCount++}`);
+            values.push(email);
+        }
+
+        if (updates.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No valid fields provided for update'
+            });
+        }
+
+        values.push(userId);
+        const query = `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING id, name, surname, email`;
+
+        const updatedUser = await db.query(query, values);
+
+        res.json({
+            success: true,
+            message: 'Profile updated successfully',
+            data: updatedUser.rows[0]
+        });
+
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+};
+
+exports.addUser = async (req, res) => {
+    try {
+        if (!req.user || !req.user.is_admin) {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to add users'
+            });
+        }
+
+        const { name, surname, email, password, is_admin } = req.body;
+
+        if (!name || !surname || !email || !password || !is_admin ) {
+            return res.status(400).json({
+                success: false,
+                message: 'All fields (name, surname, email, password, is_admin) are required.'
+            });
+        }
+
+        const existingUser = await db.query(
+            'SELECT id FROM users WHERE email = $1',
+            [email]
+        );
+        if (existingUser.rows.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email already exists.'
+            });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const newUser = await db.query(
+            `INSERT INTO users (name, surname, email, password, is_admin) 
+             VALUES ($1, $2, $3, $4, $5) 
+             RETURNING id, name, surname, email, is_admin, created_at`,
+            [name, surname, email, hashedPassword, is_admin]
+        );
+
+        res.status(201).json({
+            success: true,
+            message: 'User added successfully',
+            data: newUser.rows[0]
+        });
+    } catch (error) {
+        console.error('Error adding user:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error adding user'
+        });
+    }
 };
 
 exports.verifyEmail = async (req, res) => {
@@ -460,70 +613,7 @@ exports.getProfile = async (req, res) => {
     }
 };
 
-exports.updateProfile = async (req, res) => {
-    try {
-        const { name, surname, email } = req.body;
-        const userId = req.user.id;
 
-        // Check if email is already taken by another user
-        if (email && email !== req.user.email) {
-            const existingUser = await db.query(
-                'SELECT id FROM users WHERE email = $1 AND id != $2',
-                [email, userId]
-            );
-
-            if (existingUser.rows.length > 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Email is already taken by another user !'
-                });
-            }
-        }
-
-        // Build update query dynamically based on provided fields
-        const updates = [];
-        const values = [];
-        let paramCount = 1;
-
-        if (name) {
-            updates.push(`name = $${paramCount++}`);
-            values.push(name);
-        }
-        if (surname) {
-            updates.push(`surname = $${paramCount++}`);
-            values.push(surname);
-        }
-        if (email) {
-            updates.push(`email = $${paramCount++}`);
-            values.push(email);
-        }
-
-        if (updates.length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'No valid fields provided for update'
-            });
-        }
-
-        values.push(userId);
-        const query = `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING id, name, surname, email`;
-
-        const updatedUser = await db.query(query, values);
-
-        res.json({
-            success: true,
-            message: 'Profile updated successfully',
-            data: updatedUser.rows[0]
-        });
-
-    } catch (error) {
-        console.error('Error updating profile:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error'
-        });
-    }
-};
 
 exports.changePassword = async (req, res) => {
     try {

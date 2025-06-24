@@ -2,7 +2,6 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const Joi = require("joi");
 
-// Enhanced password validation schema
 const strictPasswordSchema = Joi.string()
   .pattern(/^(?=.*[A-Za-z])[A-Za-z\d\W]{8,20}$/)
   .required()
@@ -11,7 +10,6 @@ const strictPasswordSchema = Joi.string()
     "any.required": "Password is required"
   });
 
-// Additional password complexity check
 const checkPasswordComplexity = (password) => {
     const checks = {
         length: password.length <= 8,
@@ -33,7 +31,6 @@ const checkPasswordComplexity = (password) => {
     };
 };
 
-// Password validation function using Joi + complexity check
 const validatePassword = (password) => {
     const { error, value } = strictPasswordSchema.validate(password);
     
@@ -44,7 +41,6 @@ const validatePassword = (password) => {
         };
     }
 
-    // Then check complexity
     const complexity = checkPasswordComplexity(password);
     
     if (!complexity.isValid) {
@@ -71,28 +67,20 @@ const validatePassword = (password) => {
 };
 
 
-// Secure password comparison using timing-safe comparison
 const comparePassword = async (candidatePassword, hashedPassword) => {
     try {
-        // Use bcrypt.compare which is already timing-safe
         return await bcrypt.compare(candidatePassword, hashedPassword);
     } catch (error) {
-        // In case of error, return false instead of throwing
-        // This prevents timing attacks by not revealing if the hash is valid
         return false;
     }
 };
 
-// Secure string comparison using crypto.timingSafeEqual
 const secureStringCompare = (str1, str2) => {
     try {
-        // Convert strings to buffers for timing-safe comparison
         const buf1 = Buffer.from(str1, 'utf8');
         const buf2 = Buffer.from(str2, 'utf8');
         
-        // Ensure both buffers have the same length to prevent timing attacks
         if (buf1.length !== buf2.length) {
-            // Create a dummy comparison with same length to maintain timing consistency
             const dummyBuf = Buffer.alloc(buf1.length);
             crypto.timingSafeEqual(buf1, dummyBuf);
             return false;
@@ -100,12 +88,10 @@ const secureStringCompare = (str1, str2) => {
         
         return crypto.timingSafeEqual(buf1, buf2);
     } catch (error) {
-        // In case of error, return false to prevent timing attacks
         return false;
     }
 };
 
-// Secure token comparison
 const secureTokenCompare = (token1, token2) => {
     if (!token1 || !token2) {
         return false;
@@ -113,32 +99,26 @@ const secureTokenCompare = (token1, token2) => {
     return secureStringCompare(token1, token2);
 };
 
-// Generate secure random password
 const generateSecurePassword = (length = 12) => {
     const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
     let password = '';
     
-    // Ensure at least one character from each category
     password += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)]; // uppercase
     password += 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]; // lowercase
     password += '0123456789'[Math.floor(Math.random() * 10)]; // number
     password += '!@#$%^&*'[Math.floor(Math.random() * 8)]; // special
     
-    // Fill the rest randomly
     for (let i = 4; i < length; i++) {
         password += charset[Math.floor(Math.random() * charset.length)];
     }
     
-    // Shuffle the password
     return password.split('').sort(() => Math.random() - 0.5).join('');
 };
 
-// Generate cryptographically secure random token
 const generateSecureToken = (length = 32) => {
     return crypto.randomBytes(length).toString('hex');
 };
 
-// Generate secure random string
 const generateSecureString = (length = 16) => {
     return crypto.randomBytes(length).toString('base64url');
 };
