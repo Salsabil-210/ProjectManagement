@@ -6,6 +6,8 @@ const cookie = require('cookie-parser');
 const SocketIo = require ('socket.io');
 const fs = require('fs');
 const https = require('https');
+const http = require('http');
+
 const { Server } = require('socket.io');
 
 const {
@@ -21,16 +23,27 @@ const authController = require('./controllers/authController');
 
 const app = express();
 
-const server = https.createServer({
-    key: fs.readFileSync('key.pem'),
-    cert: fs.readFileSync('cert.pem')
-}, app);
+// NOTE: تم التعليق على إنشاء سيرفر HTTPS بسبب مشكلة في قراءة ملفات الشهادة (key.pem و cert.pem)
+// const server = https.createServer({
+//     key: fs.readFileSync('key.pem'),
+//     cert: fs.readFileSync('cert.pem')
+// }, app);
 
+
+
+const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: ["https://localhost:3000"],
+        origin: ["http://localhost:3000"],
         methods: ["GET", "POST"]
     }
+});
+
+io.on('connection', (socket) => {
+    console.log('A user connected:', socket.id);
+    socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
+    });
 });
 
 app.use(cookie());
