@@ -3,6 +3,10 @@ const cors = require('cors');
 require('dotenv').config();
 const db = require('./config/db');
 const cookie = require('cookie-parser');
+const SocketIo = require ('socket.io');
+const fs = require('fs');
+const https = require('https');
+const { Server } = require('socket.io');
 
 const {
     loginLimiter, 
@@ -16,14 +20,29 @@ const authRoutes = require('./routes/authRoutes');
 const authController = require('./controllers/authController');
 
 const app = express();
+
+const server = https.createServer({
+    key: fs.readFileSync('key.pem'),
+    cert: fs.readFileSync('cert.pem')
+}, app);
+
+const io = new Server(server, {
+    cors: {
+        origin: ["https://localhost:3000"],
+        methods: ["GET", "POST"]
+    }
+});
+
 app.use(cookie());
 app.use(securityHeaders);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+
 app.use('/api/', apiLimiter);
 app.use('/api/users/login', loginLimiter);
 app.use('/api/users/register', registerLimiter);
+
 
 async function testDatabaseConnection() {
     try {
@@ -108,7 +127,7 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log(` Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`);
     console.log(` Database: PostgreSQL`);
 });

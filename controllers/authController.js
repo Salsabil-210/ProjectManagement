@@ -317,6 +317,36 @@ exports.addUser = async (req, res) => {
     }
 };
 
+exports.deleteUser = async (req,res)=>{
+  try{
+    const {userId}=req.params;
+
+    const result = await db.query(
+      `DELETE FROM users WHERE id =$1 RETURNING id`,
+      [userId]
+    );
+
+    if(result.rows.length ===0){
+        return res.status(404).json({
+            sucess:false,
+            message:`User Not found to delete`
+        });
+    }
+    res.status(200).json({
+        sucess:true,
+        message:`User deleted Successfully`
+    });
+
+  } catch(error){
+    console.log('Error deleteing the user:',error);
+    res.status(500).json({
+        sucess:false,
+        message:`Error deleting the user`
+    });
+  }
+}
+
+
 exports.verifyEmail = async (req, res) => {
     try {
         const { token } = req.params;
@@ -620,7 +650,6 @@ exports.changePassword = async (req, res) => {
         const { currentPassword, newPassword } = req.body;
         const userId = req.user.id;
 
-        // Get user with password
         const userResult = await db.query(
             'SELECT * FROM users WHERE id = $1',
             [userId]
@@ -635,7 +664,6 @@ exports.changePassword = async (req, res) => {
 
         const user = userResult.rows[0];
 
-        // Verify current password
         const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
         
         if (!isCurrentPasswordValid) {
@@ -645,10 +673,8 @@ exports.changePassword = async (req, res) => {
             });
         }
 
-        // Hash new password
         const hashedPassword = await bcrypt.hash(newPassword, 12);
 
-        // Update password
         await db.query(
             'UPDATE users SET password = $1 WHERE id = $2',
             [hashedPassword, user.id]
@@ -670,7 +696,6 @@ exports.changePassword = async (req, res) => {
 
 exports.getAllUsers = async (req, res) => {
     try {
-        // Check if user is admin
         if (!req.user.is_admin) {
             return res.status(403).json({
                 success: false,
@@ -696,29 +721,4 @@ exports.getAllUsers = async (req, res) => {
     }
 };
 
-// admin only
-exports.deleteUser = async (req, res) => {
-    try {
-        const { userId } = req.params;
-        
-        const result = await db.query(
-            'DELETE FROM users WHERE id = $1 RETURNING id',
-            [userId]
-        );
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({ 
-                success: false,
-                message: 'User not found' 
-            });
-        }
 
-        res.status(204).send();
-    } catch (error) {
-        console.error('Error deleting user:', error);
-        res.status(500).json({ 
-            success: false,
-            message: 'Error deleting user' 
-        });
-    }
-};
