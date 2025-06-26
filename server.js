@@ -14,7 +14,6 @@ const {
     loginLimiter, 
     registerLimiter, 
     apiLimiter, 
-    corsOptions, 
     securityHeaders 
 } = require('./middleware/security');
 
@@ -23,7 +22,17 @@ const authController = require('./controllers/authController');
 
 const app = express();
 
+// Define corsOptions here
+const corsOptions = {
+    origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000'],
+    credentials: true,
+    optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions)); // Apply CORS globally
+
 // NOTE: تم التعليق على إنشاء سيرفر HTTPS بسبب مشكلة في قراءة ملفات الشهادة (key.pem و cert.pem)
+//ده عشان يقرا الملفات مشفره للسيكورتي
 // const server = https.createServer({
 //     key: fs.readFileSync('key.pem'),
 //     cert: fs.readFileSync('cert.pem')
@@ -39,12 +48,14 @@ const io = new Server(server, {
     }
 });
 
+
 io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
+    console.log('A user connected. Total:', io.engine.clientsCount);
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
     });
 });
+
 
 app.use(cookie());
 app.use(securityHeaders);

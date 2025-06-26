@@ -346,7 +346,6 @@ exports.deleteUser = async (req,res)=>{
   }
 }
 
-
 exports.verifyEmail = async (req, res) => {
     try {
         const { token } = req.params;
@@ -402,7 +401,6 @@ exports.forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
 
-        // Basic email validation
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
             return res.status(400).json({ 
@@ -473,7 +471,6 @@ exports.verifyResetCode = async (req, res) => {
             });
         }
 
-        // Validate code format (6 digits)
         if (!code || !/^\d{6}$/.test(code)) {
             return res.status(400).json({ 
                 success: false,
@@ -528,7 +525,6 @@ exports.setNewPassword = async (req, res) => {
     try {
         const { email, code, newPassword } = req.body;
 
-        // Basic email validation
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
             return res.status(400).json({ 
@@ -642,8 +638,6 @@ exports.getProfile = async (req, res) => {
         });
     }
 };
-
-
 
 exports.changePassword = async (req, res) => {
     try {

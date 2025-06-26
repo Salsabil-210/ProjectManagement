@@ -1,95 +1,77 @@
+const db = require('../config/db');
+const isAdmin = require('../middleware/authmiddleware');
+const AddUser = require('../controllers/authController');
 
-// const isAdmin = require('../middleware/authmiddleware');
-// const AddUser = require('../controllers/authController');
+exports.addProject = async (req, res) => {
+    try {
+        const { name, description, start_date, end_date, userid } = req.body;
 
-// exposrts.addProject = async (req,res) {
-//     try{
-       
-//         const {name, description ,start_date, end_date ,userid} = req.body;
+        if (!name || !description || !start_date || !end_date || !userid) {
+            return res.status(400).json({
+                success: false,
+                message: 'All fields are required.'
+            });
+        }
 
-//         if(!req.user || !req.user.isAdmin){
-//             return res.ststaus(403).json({
-//                 sucess:false,
-//                 message:`You Don't Have access to add Projects`
-//             });
-//         }
-//          existingUser = await db.query (
-//          `INSERT id FROM users where email = $1`,
-//           [email]
-//         );
+        if (!req.user || !req.user.isAdmin) {
+            return res.status(403).json({
+                success: false,
+                message: `You don't have access to add projects.`
+            });
+        }
 
-//         const newProjects = await db.query(
-//             `INSERT INTO projects (name,description,`
-//         )
+        const existingUser = await db.query(
+            'SELECT id FROM users WHERE id = $1',
+            [userid]
+        );
 
-//        if(existing.rows.length === 0){
-//         return res.status(404).json({
-//             sucess:false,
-//             message: `User Not Found !`
-//         });
-//        } catch(error){
-//          res.status(500).json({
-//             sucess:false,
-//             message:`Error creating the projects `
-//          })
-//        }
-//     }
-// }
-// //  exports.addproject = async (req,res) => {
-// //      try {
-// //  if(!is_admin.id){
-// // res.status(401).json({
-// //sucess:false,
-// //message:`you sre not authorixed to add projects`,
-// //
-// //})          
-// // if(is_admin.id){
+        if (existingUser.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found!'
+            });
+        }
 
-// //   const{name, description, } = req.body
-// //    const newproject = await db.query(
-// //    `INSERT INTO projects(name,description)
-// //     VALUES($1,$2)
-// //     RETURNING id,name,description`,
-// //     [name,description]
-// //   );
+        const newProject = await db.query(
+            'INSERT INTO projects (name, description, start_date, end_date, user_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+            [name, description, start_date, end_date, userid]
+        );
 
-// //   const token =newproject.rows[0];
-  
-// //   res.status(201).json({
-// //     sucess:true,
-// //     message:`Project added sucessfully`,
-// //     data: project,
-// //     token
-// //   });
-// // }catch(error) {
-// //   console.log('Creating project error:', error);
+        return res.status(201).json({
+            success: true,
+            message: 'Project added successfully.',
+            data: newProject.rows[0]
+        });
+    } catch (error) {
+        console.error('Error creating the project:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error creating the project.'
+        });
+    }
+};
 
-// //   res.status(500).json({
-// //     sucess:false,
-// //     message:'Error creating the project'
-// //   });
-// // }      
-// // }
-
-
-// //    exports.getproject = async(req,res) =>{
-// //      try {
-// //       const {name, description} = req.body;
-
-// //       const isproject= await db.query(
-// //       `SELECT * FROM project WHERE name And description =$1 and $2`,
-// //       [name,description]
-// //       );
-     
-// //       if(isproject.rows.length === 0){
-// //          return res.status(401).json({
-// //           sucess:false,
-// //           message: `there is no project like this `
-// //          });
-// //       }
-    
-// //      }
-// //     };
-
-
+exports.getprojects = async (req, res) => {
+    if (!req.user || !req.user.isAdmin) {
+        return res.status(403).json({
+            success: false,
+            message: "You don't have access to see projects"
+        });
+    }
+    try {
+        const projects = await db.query(
+            'SELECT id, name, description, start_date, end_date, user_id FROM projects'
+        );
+        return res.status(200).json({
+            success: true,
+            data: projects.rows
+        });
+    } catch (error) {
+        console.error('Error fetching projects:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error fetching projects.'
+        });
+    }
+};
    

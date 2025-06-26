@@ -1,6 +1,5 @@
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
-const cors = require('cors');
 
 
 const loginLimiter = rateLimit({
@@ -38,13 +37,6 @@ const apiLimiter = rateLimit({
 });
 
 
-const corsOptions = {
-    origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000'],
-    credentials: true,
-    optionsSuccessStatus: 200
-};
-
-
 const securityHeaders = helmet({
     contentSecurityPolicy: {
         directives: {
@@ -65,6 +57,5 @@ module.exports = {
     loginLimiter,
     registerLimiter,
     apiLimiter,
-    corsOptions,
     securityHeaders
 }; 
