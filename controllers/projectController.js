@@ -113,7 +113,7 @@ exports.updateProject = async (req, res) => {
         });
     } catch (error) {
         console.error('Error updating the project:', error);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             message: "Internal server error"
         });
@@ -143,13 +143,13 @@ exports.deleteProject = async (req, res) => {
             });
         }
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: `Project deleted successfully`
         });
     } catch (error) {
         console.error(`Error deleting the project:`, error);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             message: `Server error while deleting the project`
         });

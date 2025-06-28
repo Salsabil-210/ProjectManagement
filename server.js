@@ -22,7 +22,6 @@ const authController = require('./controllers/authController');
 
 const app = express();
 
-// Define corsOptions here
 const corsOptions = {
     origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000'],
     credentials: true,
@@ -47,7 +46,6 @@ const io = new Server(server, {
         methods: ["GET", "POST"]
     }
 });
-
 
 io.on('connection', (socket) => {
     console.log('A user connected. Total:', io.engine.clientsCount);
@@ -122,6 +120,7 @@ app.get('/health', async (req, res) => {
 });
 
 app.use('/api/users', authRoutes);
+app.use('/api/projects',projectRoutes);
 
 app.use((err, req, res, next) => {
     console.error('Unhandled error:', err);
