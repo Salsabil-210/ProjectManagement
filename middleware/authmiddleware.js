@@ -55,7 +55,7 @@ const authenticateToken = async (req, res, next) => {
 };
 
 const isAdmin = (req, res, next) => {
-    if (req.user && req.user.is_admin) {
+    if (req.user && req.user.is_admin === true) {
         next();
     } else {
         res.status(403).json({
