@@ -11,3 +11,4 @@ name: Joi.string()
         "string.max": "Name must be less than or equal to 50 characters",
         "any.required": "Name is required"
     })
+

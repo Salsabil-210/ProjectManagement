@@ -16,8 +16,8 @@ const {
     apiLimiter, 
     securityHeaders 
 } = require('./middleware/security');
-
 const authRoutes = require('./routes/authRoutes');
+const projectRoutes = require('./routes/projectRoutes');
 const authController = require('./controllers/authController');
 
 const app = express();
@@ -28,7 +28,7 @@ const corsOptions = {
     optionsSuccessStatus: 200
 };
 
-app.use(cors(corsOptions)); // Apply CORS globally
+app.use(cors(corsOptions)); 
 
 // NOTE: تم التعليق على إنشاء سيرفر HTTPS بسبب مشكلة في قراءة ملفات الشهادة (key.pem و cert.pem)
 //ده عشان يقرا الملفات مشفره للسيكورتي
@@ -120,7 +120,7 @@ app.get('/health', async (req, res) => {
 });
 
 app.use('/api/users', authRoutes);
-app.use('/api/projects',projectRoutes);
+app.use('/api/projects', projectRoutes); 
 
 app.use((err, req, res, next) => {
     console.error('Unhandled error:', err);

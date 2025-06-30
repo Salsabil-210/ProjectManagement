@@ -155,3 +155,60 @@ exports.deleteProject = async (req, res) => {
         });
     }
 };
+
+
+exports.deleteUserproject = async (req,res) => {
+    
+
+    if (!req.user || !req.user.isAdmin){
+        return res.status(403).json({
+           sucess:false,
+           message:`you Don't Have access to delete user from projects`
+        });
+        }
+
+    try { 
+     const {userid,id} = req.params;
+
+     const project = await db.query(
+        `SELECT id FROM projects WHERE id =$1 AND user_id =$2`
+        [id, userid]
+     );
+
+     if(project.rows.length === 0){
+        return res.status(404).json({
+            sucess:false,
+            message:`No such a project like this`
+        });
+     }
+
+     
+
+      if(existingUser.rows.length === 0){
+           return res.status(404).json({
+            sucess:false,
+            message: `User Not Found`
+           });
+      }
+
+    //  const project = await db.query(
+    //     `DELETE user_id FROM projects WHERE user_id = $1 RETURNING id`,
+    //     [userid]
+    
+    //  );
+
+     return res.status(200).json({
+        sucess:true,
+        message:`User from project Deleted successfully`
+    });
+
+    }
+
+    catch(error){
+     return res.status(500).json({
+        sucess:false,
+        message:`Server Error During deleting user from the project`
+     });
+    }
+}
+   

@@ -6,9 +6,9 @@ services:
     container_name: postgres_16_7
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: taskmanagement
+      POSTGRES_PASSWORD: Salo1234.
+      POSTGRES_DB: taskdb
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
     ports:
