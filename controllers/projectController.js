@@ -2,6 +2,21 @@ const db = require('../config/db');
 const isAdmin = require('../middleware/authmiddleware');
 const AddUser = require('../controllers/authController');
 
+async function isUserExisting(user_id){
+     const userExist = await db.query(
+        `SELECT id FROM users WHERE id =$1`,
+        [user_id]
+     );
+     return userExist.rows.length > 0;
+}
+
+async function isProjectExisting(project_id){
+    const projectExist = await db.query(
+        `SELECT id FROM projects WHERE id =$1`,
+        [project_id]
+    );
+    return projectExist.rows.length > 0;
+}
 
 exports.addProject = async (req, res) => {
     try {
@@ -14,16 +29,17 @@ exports.addProject = async (req, res) => {
             });
         }
 
-
-        const existingUser = await db.query(
-            'SELECT id FROM users WHERE id = $1',
-            [user_id]
-        );
-
-        if (existingUser.rows.length === 0) {
-            return res.status(404).json({
+        if (req.user.id === req.body.user_id) {
+            return res.status(400).json({
                 success: false,
-                message: 'User not found!'
+                message: "Admin cannot add themselves as the project user."
+            });
+        }
+
+        if (!(await isUserExisting(user_id))) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'User not found!' 
             });
         }
 
@@ -69,28 +85,18 @@ exports.updateProject = async (req, res) => {
         const { name, description, start_date, end_date, user_id } = req.body;
         const { id } = req.params; 
 
-        const project = await db.query(
-            'SELECT id FROM projects WHERE id = $1',
-            [id]
-        );
-
-        if (project.rows.length === 0) {
+        if (!(await isProjectExisting(project_id))) {
             return res.status(404).json({
-                success: false,
-                message: "There is no project like this to update"
-            });
+                 success: false, 
+                 message: 'Project not found!'
+                 });
         }
 
-        const existingUser = await db.query(
-            'SELECT id FROM users WHERE id = $1',
-            [user_id]
-        );
-
-        if (existingUser.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
+        if (!(await isUserExisting(user_id))) {
+            return res.status(404).json({ 
+                success: false, 
                 message: 'User not found!'
-            });
+             });
         }
 
 
@@ -125,11 +131,11 @@ exports.deleteProject = async (req, res) => {
             [id]
         );
 
-        if (project.rows.length === 0) {
+        if (!(await isProjectExisting(project_id))) {
             return res.status(404).json({
-                success: false,
-                message: `Project not found to delete`
-            });
+                 success: false, 
+                 message: 'Project not found!'
+                 });
         }
 
         return res.status(200).json({
@@ -145,40 +151,25 @@ exports.deleteProject = async (req, res) => {
     }
 };
 
-
 exports.deleteUserproject = async (req,res) => {
 
-
-    if (!req.user || !req.user.isAdmin){
-        return res.status(403).json({
-           sucess:false,
-           message:`you Don't Have access to delete user from projects`
-        });
-        }
-
     try { 
-     const {userid,id} = req.params;
+     const {user_id,id} = req.params;
 
-     const project = await db.query(
-        `SELECT id FROM projects WHERE id =$1 AND user_id =$2`
-        [id, userid]
-     );
-
-     if(project.rows.length === 0){
+     if (!(await isProjectExisting(project_id))) {
         return res.status(404).json({
-            sucess:false,
-            message:`No such a project like this`
-        });
-     }
+             success: false, 
+             message: 'Project not found!'
+             });
+    }
 
-     
+    if (!(await isUserExisting(user_id))) {
+        return res.status(404).json({ 
+            success: false, 
+            message: 'User not found!'
+         });
+    }
 
-      if(existingUser.rows.length === 0){
-           return res.status(404).json({
-            sucess:false,
-            message: `User Not Found`
-           });
-      }
 
     //  const project = await db.query(
     //     `DELETE user_id FROM projects WHERE user_id = $1 RETURNING id`,
@@ -201,3 +192,42 @@ exports.deleteUserproject = async (req,res) => {
     }
 }
    
+exports.getprojectUsers = async (req,res) => {
+    try {
+        const {id,user_id} = req.params;
+
+        if(req.user.id !== id){
+            return res.status(403).json({
+                sucess:false,
+                message:`You don't have access to this project`
+            });
+
+        }
+        if (!(await isUserExisting(user_id))) {
+            return res.status(404).json({
+                 success: false,
+                 message: 'User not found!' 
+                });
+        }
+        
+         if (!(await isProjectExisting(project_id))) {
+           return res.status(404).json({ 
+                 success: false, 
+                 message: 'Project not found!' 
+                 });
+        }
+
+        const userResult = await db.query (
+            `SELECT users. * FROM users JOIN projects ON users.id = projects.user_id
+            WHERE projects.id =$1`,
+            [id]
+        );
+
+    } catch(error){
+        return res.status(500).json({
+            sucess:false,
+            message:`Server Error during while fetching project user`
+        })
+    }
+}
+

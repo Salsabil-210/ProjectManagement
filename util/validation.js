@@ -1,4 +1,5 @@
 const Joi = require("joi");
+const db = require('../config/db');
 
 const validateEmail = (email) => {
     const schema = Joi.string()
