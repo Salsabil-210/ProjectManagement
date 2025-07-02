@@ -1,19 +1,28 @@
 import React, { useState } from 'react';
+import { loginUser } from '../services/authApi';
 
 const Home = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle login logic here
+    setError('');
+    try {
+      await loginUser(username, password);
+      alert('Login successful!');
+    } catch (err) {
+      setError('Login failed! Please check your credentials.');
+    }
   };
 
   return (
     <div style={styles.bg}>
       <form style={styles.card} onSubmit={handleSubmit}>
         <h2 style={styles.title}>Log in</h2>
+        {error && <div style={styles.error}>{error}</div>}
         <label style={styles.label} htmlFor="username">User Name</label>
         <input
           style={styles.input}
@@ -21,7 +30,7 @@ const Home = () => {
           type="text"
           placeholder="User Name"
           value={username}
-          onChange={e => setUsername(e.target.value)}
+          onChange={(e) => setUsername(e.target.value)}
           autoComplete="username"
         />
         <label style={{...styles.label, marginTop: 20}} htmlFor="password">Password</label>
@@ -31,7 +40,7 @@ const Home = () => {
           type={showPassword ? 'text' : 'password'}
           placeholder="Password"
           value={password}
-          onChange={e => setPassword(e.target.value)}
+          onChange={(e) => setPassword(e.target.value)}
           autoComplete="current-password"
         />
         <div style={styles.showPasswordRow}>
@@ -76,6 +85,15 @@ const styles = {
     fontWeight: 600,
     fontSize: 32,
     letterSpacing: 1,
+  },
+  error: {
+    color: '#ff5252',
+    background: '#2d1a1a',
+    borderRadius: 6,
+    padding: '8px 0',
+    marginBottom: 10,
+    textAlign: 'center',
+    fontSize: 15,
   },
   label: {
     color: '#1de9f6',
@@ -125,4 +143,4 @@ const styles = {
   },
 };
 
-export default Home; 
+export default Home;

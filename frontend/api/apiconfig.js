@@ -22,7 +22,6 @@ const API_ENDPOINTS = {
   UPDATE_TASK: (id) => `/tasks/${id}`,
   DELETE_TASK: (id) => `/tasks/${id}`,
 
-  // ... add more as needed
 };
 
 export { API_URL, API_ENDPOINTS };
