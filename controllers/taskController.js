@@ -156,10 +156,31 @@ exports.updateTask = async (req, res) => {
 
 exports.deleteTask = async (req,res) =>{
     try{
-        const{id} =req.params;
+        const {id} = req.params;
+        
+        if(!(await isTaskExist(id))){
+            return res.status(404).json({
+                sucess:false,
+                message:`Task Not found !`
+            });
+        }
+
+        const task = await db.query(
+            `DELETE FROM tasks WHERE id = $1 RETURNING id`,
+            [id]
+        );
+
+        res.status(200).json({
+            sucess:true,
+            message:`Task Deleted Successfully`
+        });
 
     }catch(error){
-
+    console.error('Error Deleting the task',error);
+    res.status(500).json({
+        sucess:false,
+        message:`Server Error During deleting task`
+    });
     }
 }
 exports.userStatus = async (req, res) => {
