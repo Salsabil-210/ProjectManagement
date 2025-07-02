@@ -1,56 +1,182 @@
-const db = require =('../config/db');
+const db = require('../config/db');
+const { isProjectExisting } = require('../controllers/projectController');
 
-
-async function isUserExisting (user_id){
-   const userExist= await db.query(
-    `SELECT id FROM users WHERE id = $1`,
-    [user_id]
-   );
-   return userExist.length > 0;
+async function isUserExisting(user_id) {
+    const result = await db.query(
+        `SELECT id FROM users WHERE id = $1`,
+        [user_id]
+    );
+    return result.rows.length > 0;
 }
 
-async function isTaskExist (task_id){
-    const taskExist = await db.query(
-        `SELECT id from tasks WHERE id =$1`
+async function isTaskExist(task_id) {
+    const result = await db.query(
+        `SELECT id FROM tasks WHERE id = $1`,
         [task_id]
     );
-    return taskExist.length > 0;
+    return result.rows.length > 0;
 }
 
-exports.addtask = async (req,res) => {
-    try{
-     const { name, status, start_date, end_date, user_id  } = req.body;
+exports.addTask = async (req, res) => {
+    try {
+        const { name, status , start_date, end_date, user_id, project_id , is_completed} = req.body;
 
-     if (!name || !start_date || !end_date || !user_id) {
-        return res.status(400).json({
+        if (!name || !start_date || !end_date || !user_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'name, start_date, end_date, and user_id are required.'
+            });
+        }
+
+        const userExists = await isUserExisting(user_id);
+        if (!userExists) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found!'
+            });
+        }
+
+        const projectExists = await isProjectExisting(project_id)
+          if(!projectExists){
+             return res.status(404).json({
+                sucess:false,
+                message:'project Not found to add!'
+             });
+          }
+
+        const newTask = await db.query(
+            `INSERT INTO tasks (admin_id,name, status, is_completed, start_date, end_date, user_id, project_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7 ,$8)
+             RETURNING *`,
+            [req.user.id,name, status, is_completed, start_date, end_date, user_id, project_id ]
+        );
+
+        return res.status(201).json({
+            success: true,
+            message: 'Task created successfully.',
+            data: newTask.rows[0]
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
             success: false,
-            message: 'name , startdate , end date ,and user is required'
+            message: 'Server error while adding task.'
         });
     }
-     if(!(await isUserExisting(user_id))) {
-         return res.status(404).json({
-            sucess:false,
-            message:'User Not found!'
-         });
-     }
+};
 
-     const newtask = await db.query(
-        `INSERT INTO tasks (admin_id, name , status ,is_completed , start_date,end_date,user_id,project_id) 
-        VALUES ($1, $2 , $3 ,$4 ,$5 , $6 ,$7) RETURNING *`,
+exports.getTask = async (req, res) => {
+    try {
+        const { task_id } = req.params;
 
-        [name, status ,start_date , end_date, user_id , id ,project_id]
-     );
 
-    return res.status(201).jon({
-        sucess:true,
-        message:`Task Created Successfully`
-    });
+        if (!(await isUserExisting(user_id))) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found!'
+            });
+        }
 
+        if (!(await isTaskExist(task_id))) {
+            return res.status(404).json({
+                success: false,
+                message: 'Task not found!'
+            });
+        }
+
+        const task = await db.query(
+            `SELECT id, name, status, is_completed, start_date, end_date, user_id, project_id 
+             FROM tasks 
+             WHERE id = $1 AND user_id = $2`,
+            [task_id, user_id]
+        );
+
+        return res.status(200).json({
+            success: true,
+            data: task.rows[0] 
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: 'Server error while fetching task.'
+        });
     }
-    catch(error){
-    return res.status(500).json({
-        sucess:false,
-        message:`Server Error During adding task,please try agian later`
-    });
+};
+
+exports.updateTask = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, status, is_completed, start_date, end_date, user_id } = req.body;
+
+        if (!id) {
+            return res.status(400).json({
+                success: false,
+                message: 'Task ID is required in params.'
+            });
+        }
+        if(!(await isUserExisting(user_id))){
+            return res.status(404).json({
+                sucess:false,
+                message:`The User Not found !`
+            });
+        }
+
+        if (!(await isTaskExist(id))) {
+            return res.status(404).json({
+                success: false,
+                message: 'Task not found!'
+            });
+        }
+
+        const updatedTask = await db.query(
+            `UPDATE tasks
+             SET name = $1, status = $2, is_completed = $3, start_date = $4, end_date = $5, user_id = $6
+             WHERE id = $7
+             RETURNING *`,
+            [name, status, is_completed, start_date, end_date, user_id, id]
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: 'Task updated successfully.',
+            data: updatedTask.rows[0]
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: 'Server error while updating task.'
+        });
+    }
+};
+
+exports.deleteTask = async (req,res) =>{
+    try{
+        const{id} =req.params;
+
+    }catch(error){
+
     }
 }
+exports.userStatus = async (req, res) => {
+    try{
+        
+
+    
+    
+    return res.status(200).json({
+        success: true,
+        message: 'User status endpoint not implemented.'
+    });
+
+ } catch(error){
+
+    }
+};
+
+
+

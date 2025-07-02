@@ -16,9 +16,11 @@ const {
     apiLimiter, 
     securityHeaders 
 } = require('./middleware/security');
+
 const authRoutes = require('./routes/authRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const authController = require('./controllers/authController');
+const taskRoutes = require('./routes/taskRoutes');
 
 const app = express();
 
@@ -61,9 +63,10 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 
-app.use('/api/', apiLimiter);
 app.use('/api/users/login', loginLimiter);
 app.use('/api/users/register', registerLimiter);
+app.use('/api/', apiLimiter);
+
 
 
 async function testDatabaseConnection() {
@@ -119,8 +122,9 @@ app.get('/health', async (req, res) => {
     }
 });
 
-app.use('/api/users', authRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes); 
+app.use('/api/tasks',taskRoutes);
 
 app.use((err, req, res, next) => {
     console.error('Unhandled error:', err);
@@ -152,5 +156,4 @@ const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
     console.log(` Server running in ${process.env.NODE_ENV || "development"} mode on port ${PORT}`);
-    console.log(` Database: PostgreSQL`);
 });

@@ -66,7 +66,6 @@ const validatePassword = (password) => {
     };
 };
 
-
 const comparePassword = async (candidatePassword, hashedPassword) => {
     try {
         return await bcrypt.compare(candidatePassword, hashedPassword);

@@ -10,13 +10,15 @@ async function isUserExisting(user_id){
      return userExist.rows.length > 0;
 }
 
-async function isProjectExisting(project_id){
+ async function isProjectExisting(project_id){
     const projectExist = await db.query(
         `SELECT id FROM projects WHERE id =$1`,
         [project_id]
     );
     return projectExist.rows.length > 0;
 }
+
+
 
 exports.addProject = async (req, res) => {
     try {
@@ -42,6 +44,8 @@ exports.addProject = async (req, res) => {
                 message: 'User not found!' 
             });
         }
+
+       
 
         const newProject = await db.query(
             'INSERT INTO projects (admin_id, name, description, start_date, end_date, user_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
@@ -126,10 +130,6 @@ exports.deleteProject = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const project = await db.query(
-            `DELETE FROM projects WHERE id = $1 RETURNING id`,
-            [id]
-        );
 
         if (!(await isProjectExisting(project_id))) {
             return res.status(404).json({
@@ -137,6 +137,10 @@ exports.deleteProject = async (req, res) => {
                  message: 'Project not found!'
                  });
         }
+        const project = await db.query(
+            `DELETE FROM projects WHERE id = $1 RETURNING id`,
+            [id]
+        );
 
         return res.status(200).json({
             success: true,
@@ -231,3 +235,4 @@ exports.getprojectUsers = async (req,res) => {
     }
 }
 
+exports.isProjectExisting = isProjectExisting;

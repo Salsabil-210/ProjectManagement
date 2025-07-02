@@ -9,6 +9,7 @@ const winston = require('winston');
 const tokenBlacklist = new Set();
 const failedLoginAttempts = {};
 const isAdmin = require('../middleware/authmiddleware');
+const { boolean } = require('joi');
 
 const logger = winston.createLogger({
     level: 'info',
@@ -267,16 +268,10 @@ exports.updateUser = async (req, res) => {
 
 exports.addUser = async (req, res) => {
     try {
-        if (!req.user || !req.user.is_admin) {
-            return res.status(403).json({
-                success: false,
-                message: 'Not authorized to add users'
-            });
-        }
 
         const { name, surname, email, password, is_admin } = req.body;
 
-        if (!name || !surname || !email || !password || !is_admin ) {
+        if (!name || !surname || !email || !password || typeof is_admin !== 'boolean') {
             return res.status(400).json({
                 success: false,
                 message: 'All fields (name, surname, email, password, is_admin) are required.'
@@ -462,7 +457,6 @@ exports.verifyResetCode = async (req, res) => {
     try {
         const { email, code } = req.body;
 
-        // Basic email validation
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
             return res.status(400).json({ 
@@ -474,7 +468,7 @@ exports.verifyResetCode = async (req, res) => {
         if (!code || !/^\d{6}$/.test(code)) {
             return res.status(400).json({ 
                 success: false,
-                message: "Invalid reset code format" 
+                message: "Invalid reset code" 
             });
         }
 
@@ -533,7 +527,6 @@ exports.setNewPassword = async (req, res) => {
             });
         }
 
-        // Validate code format (6 digits)
         if (!code || !/^\d{6}$/.test(code)) {
             return res.status(400).json({ 
                 success: false,
@@ -541,7 +534,6 @@ exports.setNewPassword = async (req, res) => {
             });
         }
 
-        // Validate password strength
         if (!strictPasswordRegex.test(newPassword)) {
             return res.status(400).json({
                 success: false,
