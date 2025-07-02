@@ -22,7 +22,7 @@ router.post('/verify-reset-code', userController.verifyResetCode);
 router.post('/addUser', authenticateToken, isAdmin, userController.addUser);
 router.post('/set-new-password', userController.setNewPassword);
 router.get('/profile', authenticateToken, userController.getProfile);
-
+router.put("updateUser/:id",authenticateToken,userController.updateUser);
 
 router.put('/profile', authenticateToken, validateProfileUpdate, userController.updateUser);
 router.put('/change-password', authenticateToken, validateChangePassword, userController.changePassword);
