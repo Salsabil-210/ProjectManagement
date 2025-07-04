@@ -12,4 +12,16 @@ export const API_ENDPOINTS = {
   GET_ALL_USERS: "/auth/all",
   UPDATE_USER: "/auth/updateUser",
   DELETE_USER: "/auth/deleteUser",
+
+  // Project Endpoints
+  GET_PROJECTS: "/projects/getprojects",
+  ADD_PROJECT: "/projects/addprojects",
+  UPDATE_PROJECT: "/projects/updateprojects",
+  DELETE_PROJECT: "/projects/deleteprojects",
+
+  // Task Endpoints
+  ADD_TASK: "/tasks/addtasks",
+  GET_TASKS: "/tasks/gettasks",
+  UPDATE_TASK: "/tasks/updatetasks",
+  DELETE_TASK: "/tasks/deletetasks",
 }; 

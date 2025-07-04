@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Auth from './screens/auth';
 import Home from './screens/Home';
+import './App.css';
 
 function App() {
   return (

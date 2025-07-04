@@ -22,107 +22,78 @@ async function isUserExisting(user_id){
 
 exports.addProject = async (req, res) => {
     try {
-        const { name, description, start_date, end_date, user_id } = req.body;
+        const { name, description, start_date, end_date, user_ids } = req.body;
 
-        if (!name || !description || !start_date || !end_date || !user_id) {
+        if (!name || !description || !start_date || !end_date || !user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
             return res.status(400).json({
                 success: false,
-                message: 'All fields are required.'
+                message: 'All fields and at least one user are required.'
             });
         }
-
-        if (req.user.id === req.body.user_id) {
-            return res.status(400).json({
-                success: false,
-                message: "Admin cannot add themselves as the project user."
-            });
-        }
-
-        if (!(await isUserExisting(user_id))) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'User not found!' 
-            });
-        }
-
-       
 
         const newProject = await db.query(
-            'INSERT INTO projects (admin_id, name, description, start_date, end_date, user_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-            [req.user.id, name, description, start_date, end_date, user_id]
+            'INSERT INTO projects (admin_id, name, description, start_date, end_date) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+            [req.user.id, name, description, start_date, end_date]
         );
+        const projectId = newProject.rows[0].id;
 
-        return res.status(201).json({
-            success: true,
-            message: 'Project added successfully.',
-            data: newProject.rows[0]
-        });
+        for (const userId of user_ids) {
+            await db.query('INSERT INTO project_users (project_id, user_id) VALUES ($1, $2)', [projectId, userId]);
+        }
+
+        res.status(201).json({ success: true, message: 'Project added successfully.', data: newProject.rows[0] });
     } catch (error) {
-        console.error('Server Error creating the project:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Error creating the project.'
-        });
+        console.error('Error creating project:', error);
+        res.status(500).json({ success: false, message: 'Error creating project.' });
     }
 };
 
 exports.getprojects = async (req, res) => {
     try {
         const projects = await db.query(
-            'SELECT id, name, description, start_date, end_date, user_id FROM projects'
+            'SELECT * FROM projects'
         );
-        return res.status(200).json({
-            success: true,
-            data: projects.rows
-        });
+        const projectList = projects.rows;
+
+        for (const project of projectList) {
+            const users = await db.query(
+                'SELECT u.id, u.name, u.surname, u.email FROM users u JOIN project_users pu ON u.id = pu.user_id WHERE pu.project_id = $1',
+                [project.id]
+            );
+            project.user_ids = users.rows.map(u => u.id);
+            project.users = users.rows;
+        }
+
+        res.status(200).json({ success: true, data: projectList });
     } catch (error) {
         console.error('Error fetching projects:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Error fetching projects.'
-        });
+        res.status(500).json({ success: false, message: 'Error fetching projects.' });
     }
 };
    
 exports.updateProject = async (req, res) => {
     try {
-        const { name, description, start_date, end_date, user_id } = req.body;
-        const { id } = req.params; 
+        const { name, description, start_date, end_date, user_ids } = req.body;
+        const { id } = req.params;
 
-        if (!(await isProjectExisting(project_id))) {
-            return res.status(404).json({
-                 success: false, 
-                 message: 'Project not found!'
-                 });
+        if (!name || !description || !start_date || !end_date || !user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
+            return res.status(400).json({ success: false, message: 'All fields and at least one user are required.' });
         }
 
-        if (!(await isUserExisting(user_id))) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'User not found!'
-             });
-        }
-
-
-        const updatedProject = await db.query(
-            `UPDATE projects
-             SET name = $1, description = $2, start_date = $3, end_date = $4, user_id = $5
-             WHERE id = $6
-             RETURNING *`,
-            [name, description, start_date, end_date, user_id, id]
+        await db.query(
+            `UPDATE projects SET name = $1, description = $2, start_date = $3, end_date = $4 WHERE id = $5`,
+            [name, description, start_date, end_date, id]
         );
 
-        return res.status(200).json({
-            success: true,
-            message: "Project updated successfully",
-            data: updatedProject.rows[0]
-        });
+        await db.query('DELETE FROM project_users WHERE project_id = $1', [id]);
+        for (const userId of user_ids) {
+            await db.query('INSERT INTO project_users (project_id, user_id) VALUES ($1, $2)', [id, userId]);
+        }
+
+        res.status(200).json({ success: true, message: 'Project updated successfully' });
     } catch (error) {
-        console.error('Error updating the project:', error);
-        return res.status(500).json({
-            success: false,
-            message: "Internal server error"
-        });
+        console.error('Error updating project:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -130,8 +101,7 @@ exports.deleteProject = async (req, res) => {
     try {
         const { id } = req.params;
 
-
-        if (!(await isProjectExisting(project_id))) {
+        if (!(await isProjectExisting(id))) {
             return res.status(404).json({
                  success: false, 
                  message: 'Project not found!'
@@ -160,7 +130,7 @@ exports.deleteUserproject = async (req,res) => {
     try { 
      const {user_id,id} = req.params;
 
-     if (!(await isProjectExisting(project_id))) {
+     if (!(await isProjectExisting(id))) {
         return res.status(404).json({
              success: false, 
              message: 'Project not found!'
@@ -214,7 +184,7 @@ exports.getprojectUsers = async (req,res) => {
                 });
         }
         
-         if (!(await isProjectExisting(project_id))) {
+         if (!(await isProjectExisting(id))) {
            return res.status(404).json({ 
                  success: false, 
                  message: 'Project not found!' 

@@ -40,13 +40,7 @@ const projectSchema = Joi.object({
             "any.required": "End date is required",
             "date.format": "End date must be in ISO format (YYYY-MM-DD)"
         }),
-    user_id: Joi.number()
-        .integer()
-        .required()
-        .messages({
-            "number.base": "User ID must be a number",
-            "any.required": "User ID is required"
-        })
+    user_ids: Joi.array().items(Joi.number().required()).min(1).required()
 }).custom((value, helpers) => {
     if (value.start_date && value.end_date && new Date(value.start_date) > new Date(value.end_date)) {
         return helpers.message('Start date cannot be after end date');
