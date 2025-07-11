@@ -185,32 +185,40 @@ exports.deleteTask = async (req,res) =>{
 }
 
 exports.userStatustask = async (req, res) => {
-    try{
-        
-     const{ id } =req.params;
-    const{task_status} = req.body;
+    try {
+        const { id } = req.params;
+        const { task_status } = req.body;
 
-    if(!req.user && !req.user.task){
-       return res.status(403).json({
-        sucess:false,
-        message:`You are Not related to this project`
-       });
-    }
-    const statususer = await db.query(
-        `INSERT INTO tasks (task_status)  VALUES($1) RETURNING *`,
-        [task_status]
-    );
+        if (!req.user) {
+            return res.status(403).json({
+                success: false,
+                message: `You are not authenticated`
+            });
+        }
 
-return res.status(201).json({
-    sucess:true,
-    message:` USer Status Updated Successfully`
-});
- } catch(error){
-   console.error(error);
-   return res.status(500).json({
-    sucess:false,
-    message:`Server Error `
-   })
+        if (!(await isTaskExist(id))) {
+            return res.status(404).json({
+                success: false,
+                message: `Task not found!`
+            });
+        }
+
+        const updatedTask = await db.query(
+            `UPDATE tasks SET status = $1 WHERE id = $2 RETURNING *`,
+            [task_status, id]
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: `User status updated successfully`,
+            data: updatedTask.rows[0]
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: `Server Error`
+        });
     }
 };
 
@@ -247,6 +255,17 @@ exports.updatesUsertatus = async(req,res) =>{
     
  }
 }
+
+exports.getTasks = async (req, res) => {
+  const tasks = await db.query('SELECT * FROM tasks');
+  res.json({ success: true, data: tasks.rows });
+};
+
+exports.getTasksByProject = async (req, res) => {
+  const { projectId } = req.params;
+  const tasks = await db.query('SELECT * FROM tasks WHERE project_id = $1', [projectId]);
+  res.json({ success: true, data: tasks.rows });
+};
 
 
 

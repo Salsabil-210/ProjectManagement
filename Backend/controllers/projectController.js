@@ -2,13 +2,16 @@ const db = require('../config/db');
 const isAdmin = require('../middleware/authmiddleware');
 const AddUser = require('../controllers/authController');
 
-async function isUserExisting(user_id){
-     const userExist = await db.query(
-        `SELECT id FROM users WHERE id =$1`,
-        [user_id]
-     );
-     return userExist.rows.length > 0;
+async function isUsersExisting(user_ids) {
+    if (!Array.isArray(user_ids)) user_ids = [user_ids];
+    if (user_ids.length === 0) return false;
+    const result = await db.query(
+        `SELECT id FROM users WHERE id = ANY($1::int[])`,
+        [user_ids]
+    );
+    return result.rows.length === user_ids.length;
 }
+
 
  async function isProjectExisting(project_id){
     const projectExist = await db.query(
@@ -31,6 +34,13 @@ exports.addProject = async (req, res) => {
             });
         }
 
+        if (!(await isUsersExisting(user_ids))) {
+            return res.status(400).json({
+                success: false,
+                message: `One or more user IDs do not exist.`
+            });
+        }
+
         const newProject = await db.query(
             'INSERT INTO projects (admin_id, name, description, start_date, end_date) VALUES ($1, $2, $3, $4, $5) RETURNING *',
             [req.user.id, name, description, start_date, end_date]
@@ -38,10 +48,15 @@ exports.addProject = async (req, res) => {
         const projectId = newProject.rows[0].id;
 
         for (const userId of user_ids) {
-            await db.query('INSERT INTO project_users (project_id, user_id) VALUES ($1, $2)', [projectId, userId]);
+            await db.query(
+                'INSERT INTO project_users (project_id, user_id) VALUES ($1, $2)',
+                 [projectId, userId]);
         }
 
-        res.status(201).json({ success: true, message: 'Project added successfully.', data: newProject.rows[0] });
+        res.status(201).json({
+             success: true,
+              message: 'Project added successfully.',
+               data: newProject.rows[0] });
     } catch (error) {
         console.error('Error creating project:', error);
         res.status(500).json({ success: false, message: 'Error creating project.' });
@@ -125,44 +140,85 @@ exports.deleteProject = async (req, res) => {
     }
 };
 
-exports.deleteUserproject = async (req,res) => {
+exports.adduserproject = async (req, res) => {
+    try {
+        const { user_id, id } = req.params; 
 
+        if (!(await isProjectExisting(id))) {
+            return res.status(404).json({
+                success: false,
+                message: 'Project not found!'
+            });
+        }
+
+        if (!(await isUserExisting(user_id))) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found!'
+            });
+        }
+
+        const exists = await db.query(
+            'SELECT * FROM project_users WHERE project_id = $1 AND user_id = $2',
+            [id, user_id]
+        );
+        if (exists.rows.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'User is already a member of this project.'
+            });
+        }
+
+        await db.query(
+            'INSERT INTO project_users (project_id, user_id) VALUES ($1, $2)',
+            [id, user_id]
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: 'User added to project successfully'
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: 'Server error while adding user to project'
+        });
+    }
+};
+
+exports.deleteUserproject = async (req, res) => {
     try { 
-     const {user_id,id} = req.params;
+        const { user_id, id } = req.params;
 
-     if (!(await isProjectExisting(id))) {
-        return res.status(404).json({
-             success: false, 
-             message: 'Project not found!'
-             });
-    }
+        if (!(await isProjectExisting(id))) {
+            return res.status(404).json({
+                success: false, 
+                message: 'Project not found!'
+            });
+        }
 
-    if (!(await isUserExisting(user_id))) {
-        return res.status(404).json({ 
-            success: false, 
-            message: 'User not found!'
-         });
-    }
+        if (!(await isUserExisting(user_id))) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'User not found!'
+            });
+        }
 
+        await db.query(
+            'DELETE FROM project_users WHERE project_id = $1 AND user_id = $2',
+            [id, user_id]
+        );
 
-    //  const project = await db.query(
-    //     `DELETE user_id FROM projects WHERE user_id = $1 RETURNING id`,
-    //     [userid]
-    
-    //  );
+        return res.status(200).json({
+            success: true,
+            message: `User from project deleted successfully`
+        });
 
-     return res.status(200).json({
-        sucess:true,
-        message:`User from project Deleted successfully`
-    });
-
-    }
-
-    catch(error){
-     return res.status(500).json({
-        sucess:false,
-        message:`Server Error During deleting user from the project`
-     });
+    } catch(error) {
+        return res.status(500).json({
+            success: false,
+            message: `Server Error during deleting user from the project`
+        });
     }
 }
    

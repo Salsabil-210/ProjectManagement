@@ -19,15 +19,16 @@ router.post('/login', validateLogin ,userController.loginUser);
 router.post('/logout', authenticateToken ,userController.logout);
 router.post('/forgot-password', userController.forgotPassword);
 router.post('/verify-reset-code', userController.verifyResetCode);
-router.post('/addUser', authenticateToken, isAdmin, userController.addUser);
 router.post('/set-new-password', userController.setNewPassword);
-router.get('/profile', authenticateToken, userController.getProfile);
-router.put("updateUser/:id",authenticateToken,userController.updateUser);
 
-router.put('/profile', authenticateToken, validateProfileUpdate, userController.updateUser);
-router.put('/change-password', authenticateToken, validateChangePassword, userController.changePassword);
-
-router.get('/all', authenticateToken, isAdmin, userController.getAllUsers);
+router.post('/addUser', authenticateToken, isAdmin, userController.addUser);
+router.put("/updateUser/:id", authenticateToken, isAdmin, userController.updateUsers);
 router.delete('/deleteUser/:userId', authenticateToken, isAdmin, userController.deleteUser);
+router.get('/all', authenticateToken, isAdmin, userController.getAllUsers);
+
+router.get('/profile', authenticateToken, userController.getProfile);
+router.put('/profile', authenticateToken,isAdmin, validateProfileUpdate, userController.updateUsers);
+router.put('/change-password', authenticateToken, validateChangePassword, userController.changePassword);
+router.get('/profile', authenticateToken, userController.getProfile);
 
 module.exports = router;

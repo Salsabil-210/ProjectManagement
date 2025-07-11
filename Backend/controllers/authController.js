@@ -202,63 +202,80 @@ exports.logout = async (req, res) => {
     }
 };
 
-exports.updateUser = async (req, res) => {
+exports.updateUsers = async (req, res) => {
     try {
-        const { name, surname, email } = req.body;
+        console.log('Request body:', req.body); 
+        const { name, surname, email, password, is_admin } = req.body;
         const userId = req.user.id;
+        console.log('User ID to update:', userId); 
 
-        if (email && email !== req.user.email) {
+        if (email) {
+            console.log('Checking email availability...'); 
             const existingUser = await db.query(
                 'SELECT id FROM users WHERE email = $1 AND id != $2',
                 [email, userId]
             );
-
             if (existingUser.rows.length > 0) {
                 return res.status(400).json({
                     success: false,
-                    message: 'This Email is not valid ,please Enter another Email!'
+                    message: 'Email already in use'
                 });
             }
         }
 
-
-        const updates = [];
-        const values = [];
-        let paramCount = 1;
-
-        if (name) {
-            updates.push(`name = $${paramCount++}`);
-            values.push(name);
-        }
-        if (surname) {
-            updates.push(`surname = $${paramCount++}`);
-            values.push(surname);
-        }
-        if (email) {
-            updates.push(`email = $${paramCount++}`);
-            values.push(email);
-        }
-
-        if (updates.length === 0) {
-            return res.status(400).json({
+        console.log('Fetching current user data...'); 
+        const currentUser = await db.query(
+            'SELECT * FROM users WHERE id = $1',
+            [userId]
+        );
+        
+        if (currentUser.rows.length === 0) {
+            return res.status(404).json({
                 success: false,
-                message: 'No valid fields provided for update'
+                message: 'User not found'
             });
         }
 
-        values.push(userId);
-        const query = `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING id, name, surname, email`;
+        const updatedName = name || currentUser.rows[0].name;
+        const updatedSurname = surname || currentUser.rows[0].surname;
+        const updatedEmail = email || currentUser.rows[0].email;
+        const updatedIsAdmin = is_admin !== undefined ? is_admin : currentUser.rows[0].is_admin;
+        console.log('Password update:', password ? 'Yes' : 'No'); 
+        const updatedPassword = password ? await bcrypt.hash(password, 10) : currentUser.rows[0].password;
 
-        const updatedUser = await db.query(query, values);
+        console.log('Executing update query...'); 
+        const updateResult = await db.query(
+            `UPDATE users 
+             SET name = $1, surname = $2, email = $3, 
+                 is_admin = $4, password = $5 
+             WHERE id = $6`,
+            [updatedName, updatedSurname, updatedEmail, 
+             updatedIsAdmin, updatedPassword, userId]
+        );
 
-        res.json({
+        console.log('Update result:', updateResult.rowCount); 
+        
+        if (updateResult.rowCount === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No changes made or user not found'
+            });
+        }
+
+        res.status(200).json({
             success: true,
-            message: 'Profile updated successfully',
-            data: updatedUser.rows[0]
+            message: 'User updated successfully',
+            data: {
+                id: userId,
+                name: updatedName,
+                surname: updatedSurname,
+                email: updatedEmail,
+                is_admin: updatedIsAdmin
+            }
         });
 
     } catch (error) {
-        console.error('Error updating profile:', error);
+        console.error('Error updating user:', error);
         res.status(500).json({
             success: false,
             message: 'Internal server error'

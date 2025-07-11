@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { logoutUser, adduser, getAllUsers } from '../services/authApi';
+import { logoutUser, adduser, getAllUsers, deleteUser } from '../services/authApi';
 import { getProjects, addProject, updateProject, deleteProject } from '../services/projectApi';
+import AddTaskModal from '../components/AddTaskModal';
+import { getTasks } from '../services/tasksApi';
 
 const Home = () => {
   const navigate = useNavigate();
@@ -44,6 +46,15 @@ const Home = () => {
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [selectedEditUserId, setSelectedEditUserId] = useState('');
   const [selectedEditUsers, setSelectedEditUsers] = useState([]);
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [tasks, setTasks] = useState([]);
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showProjectDetails, setShowProjectDetails] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [deleteUserModal, setDeleteUserModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
 
   useEffect(() => {
     fetchUsers();
@@ -133,7 +144,10 @@ const Home = () => {
   const handleProjectInputChange = (e) => {
     const { name, value, multiple, options } = e.target;
     if (multiple) {
-      const selected = Array.from(options).filter(o => o.selected).map(o => o.value);
+      // Always store as array of numbers
+      const selected = Array.from(options)
+        .filter(o => o.selected)
+        .map(o => Number(o.value));
       setProjectForm(prev => ({ ...prev, [name]: selected }));
     } else {
       setProjectForm(prev => ({ ...prev, [name]: value }));
@@ -145,9 +159,10 @@ const Home = () => {
     setProjectError('');
     setProjectLoading(true);
     try {
+      // Use projectForm.user_ids directly
       const response = await addProject({
         ...projectForm,
-        user_ids: selectedUsers.map(u => u.id)
+        user_ids: projectForm.user_ids
       });
       if (response.success) {
         setShowProjectModal(false);
@@ -237,11 +252,67 @@ const Home = () => {
     }
   };
 
+  const fetchTasks = async (projectId) => {
+    try {
+      const response = await getTasks(projectId);
+      if (response.success) {
+        setTasks(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+    }
+  };
+
+  const handleTaskAdded = (newTask) => {
+    setTasks(prev => [...prev, newTask]);
+  };
+
+  const handleLogoutClick = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const handleLogoutConfirm = async () => {
+    setShowLogoutConfirm(false);
+    await handleLogout();
+  };
+
+  const handleLogoutCancel = () => {
+    setShowLogoutConfirm(false);
+  };
+
+  const handleDetailsClick = (project) => {
+    setSelectedProject(project);
+    setShowProjectDetails(true);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    try {
+      setLoading(true);
+      const response = await deleteUser(userToDelete);
+      if (response.sucess || response.success) {
+        fetchUsers();
+      } else {
+        alert(response.message || 'Failed to delete user.');
+      }
+    } catch (error) {
+      alert('Error deleting user.');
+    } finally {
+      setLoading(false);
+      setDeleteUserModal(false);
+      setUserToDelete(null);
+    }
+  };
+
+  const openDeleteUserModal = (userId) => {
+    setUserToDelete(userId);
+    setDeleteUserModal(true);
+  };
+
   return (
     <div style={styles.container}>
       <aside style={styles.sidebar}>
         <div style={styles.sidebarHeader}>
-          <span style={styles.closeBtn} onClick={handleLogout}>&#10006;</span>
           <div style={styles.welcome}>Welcome admin</div>
         </div>
         <nav style={styles.nav}>
@@ -262,10 +333,36 @@ const Home = () => {
         </nav>
       </aside>
       <main style={styles.main}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', height: 40 }}>
+          <span
+            style={{ cursor: 'pointer', fontSize: 28, marginRight: 16 }}
+            title="Logout"
+            onClick={handleLogoutClick}
+          >
+            &#x21b5;
+          </span>
+        </div>
+        {/* Logout confirmation modal */}
+        {showLogoutConfirm && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div style={{ background: '#fff', padding: 32, borderRadius: 12, minWidth: 340, minHeight: 120, textAlign: 'center', boxShadow: '0 2px 16px rgba(0,0,0,0.15)' }}>
+              <div style={{ marginBottom: 28, color: '#222', fontSize: 20, fontWeight: 500 }}>
+                Are you sure you want to log out?
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
+                <button onClick={handleLogoutConfirm} style={{ padding: '6px 18px', fontSize: 16 }}>Yes</button>
+                <button onClick={handleLogoutCancel} style={{ padding: '6px 18px', fontSize: 16 }}>No</button>
+              </div>
+            </div>
+          </div>
+        )}
         <div style={styles.headerRow}>
           <h2 style={styles.pageTitle}>{activeMenu === 'user' ? 'User List Management' : 'Project Management'}</h2>
+          {/* Add User Button (admin only) */}
           {activeMenu === 'user' && (
-            <button style={styles.addUserBtn} onClick={openAddModal}>Add New User +</button>
+            <button style={styles.addUserBtn} onClick={openAddModal}>
+              Add New User +
+            </button>
           )}
         </div>
         {activeMenu === 'user' ? (
@@ -294,7 +391,13 @@ const Home = () => {
                     </td>
                     <td style={styles.td}>
                       <span style={styles.editIcon} title="Edit">&#9998;</span>
-                      <span style={styles.deleteIcon} title="Delete">&#128465;</span>
+                      <span
+                        style={styles.deleteIcon}
+                        title="Delete"
+                        onClick={() => openDeleteUserModal(user.id)}
+                      >
+                        &#128465;
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -316,7 +419,6 @@ const Home = () => {
                 <tr>
                   <th style={styles.th}>ID</th>
                   <th style={styles.th}>PROJECT NAME</th>
-                  <th style={styles.th}>USERS</th>
                   <th style={styles.th}>DETAILS</th>
                   <th style={styles.th}>EDIT</th>
                 </tr>
@@ -327,11 +429,8 @@ const Home = () => {
                     <td style={styles.td}>{project.id}</td>
                     <td style={styles.td}>{project.name}</td>
                     <td style={styles.td}>
-                      {project.users && project.users.length > 0
-                        ? project.users.map(u => `${u.name} ${u.surname}`).join(', ')
-                        : 'No users'}
+                      <span style={styles.detailsIcon} title="Details" onClick={() => navigate(`/project/${project.id}`)}>&#128193;</span>
                     </td>
-                    <td style={styles.td}><span style={styles.detailsIcon} title="Details">&#128193;</span></td>
                     <td style={styles.td}>
                       <span style={styles.editIcon} title="Edit" onClick={() => openEditProjectModal(project)}>&#9998;</span>
                       <span style={styles.deleteIcon} title="Delete" onClick={() => openDeleteProjectModal(project.id)}>&#128465;</span>
@@ -385,58 +484,18 @@ const Home = () => {
                       required
                     />
                     <select
-                      value={selectedUserId}
-                      onChange={e => setSelectedUserId(e.target.value)}
+                      multiple
+                      name="user_ids"
+                      value={projectForm.user_ids}
+                      onChange={handleProjectInputChange}
                       style={styles.input}
                     >
-                      <option value="">Choose One</option>
-                      {users
-                        .filter(u => !selectedUsers.some(su => su.id === u.id))
-                        .map(user => (
-                          <option key={user.id} value={user.id}>
-                            {user.name} {user.surname}
-                          </option>
-                        ))}
+                      {users.map(user => (
+                        <option key={user.id} value={user.id}>
+                          {user.name}
+                        </option>
+                      ))}
                     </select>
-                    <button
-                      onClick={() => {
-                        const user = users.find(u => u.id === Number(selectedUserId));
-                        if (user && !selectedUsers.some(su => su.id === user.id)) {
-                          setSelectedUsers([...selectedUsers, user]);
-                          setSelectedUserId('');
-                        }
-                      }}
-                      disabled={!selectedUserId}
-                    >
-                      +
-                    </button>
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>id</th>
-                          <th>Name</th>
-                          <th>Delete</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedUsers.map(user => (
-                          <tr key={user.id}>
-                            <td>{user.id}</td>
-                            <td>{user.name}</td>
-                            <td>
-                              <span
-                                style={{ cursor: 'pointer' }}
-                                onClick={() =>
-                                  setSelectedUsers(selectedUsers.filter(u => u.id !== user.id))
-                                }
-                              >
-                                🗑️
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
                     {projectError && <div style={styles.error}>{projectError}</div>}
                     <div style={styles.modalButtons}>
                       <button type="submit" style={styles.submitBtn} disabled={projectLoading}>
@@ -645,6 +704,24 @@ const Home = () => {
           </div>
         </div>
       )}
+      {deleteUserModal && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modal}>
+            <h3 style={styles.modalTitle}>Delete User</h3>
+            <div style={{ marginBottom: 20, fontSize: 16 }}>
+              Are you sure you want to delete this user?
+            </div>
+            <div style={styles.modalButtons}>
+              <button style={styles.submitBtn} onClick={handleDeleteUser}>
+                Yes, Delete
+              </button>
+              <button style={styles.cancelBtn} onClick={() => { setDeleteUserModal(false); setUserToDelete(null); }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -672,13 +749,6 @@ const styles = {
     alignItems: 'flex-start',
     padding: '30px 20px 15px 20px',
     borderBottom: '1px solid #4B3B5C',
-  },
-  closeBtn: {
-    alignSelf: 'flex-end',
-    fontSize: 24,
-    cursor: 'pointer',
-    marginBottom: 20,
-    color: '#9E9E9E',
   },
   welcome: {
     fontWeight: 500,
